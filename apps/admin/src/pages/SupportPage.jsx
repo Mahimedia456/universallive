@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 
-export default function SupportPage() {
+export default function SupportPage({ onOpenSupport }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 

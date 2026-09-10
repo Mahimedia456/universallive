@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 
-export default function BroadcastsPage() {
+export default function BroadcastsPage({ onOpenBroadcast }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 
@@ -30,9 +30,12 @@ export default function BroadcastsPage() {
               <strong>{b.title || 'Universal Live Broadcast'}</strong>
               <div className="muted">{b.user_id} · {b.status}</div>
             </div>
-            {['live','active','started'].includes(b.status) ? (
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <button className="btn" onClick={() => onOpenBroadcast?.(b.id)}>View</button>
+              {['live','active','started'].includes(b.status) ? (
               <button className="btn" onClick={() => stop(b.id)}>Stop</button>
             ) : <span className="status">{b.status}</span>}
+            </div>
           </div>
         ))}
       </div>

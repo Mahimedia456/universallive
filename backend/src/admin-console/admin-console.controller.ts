@@ -18,6 +18,31 @@ export class AdminConsoleController {
     return (value || '').replace(/^Bearer\s+/i, '').trim();
   }
 
+  @Post('login')
+  login(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+    },
+  ) {
+    return this.admin.login(body.email, body.password);
+  }
+
+
+
+  @Get('runtime-status')
+  runtimeStatus() {
+    return {
+      ok: true,
+      service: 'UniversalLive Admin Console API',
+      runtime: 'nestjs',
+      adminConsole: true,
+      cors: true,
+      time: new Date().toISOString(),
+    };
+  }
+
   @Get('me')
   me(@Headers('authorization') authorization?: string) {
     return this.admin.me(this.token(authorization));
@@ -187,5 +212,66 @@ export class AdminConsoleController {
   @Get('system/health')
   systemHealth(@Headers('authorization') authorization?: string) {
     return this.admin.operationalHealth(this.token(authorization));
+  }
+
+
+  @Get('creators/:userId')
+  creatorDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('userId') userId: string,
+  ) {
+    return this.admin.creatorDetail(this.token(authorization), userId);
+  }
+
+  @Get('broadcasts/:id')
+  broadcastDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    return this.admin.broadcastDetail(this.token(authorization), id);
+  }
+
+  @Get('support/:id')
+  supportDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    return this.admin.supportDetail(this.token(authorization), id);
+  }
+
+  @Post('support/:id/reply')
+  supportReply(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { message: string },
+  ) {
+    return this.admin.replySupport(
+      this.token(authorization),
+      id,
+      body.message,
+    );
+  }
+
+  @Get('admin-users')
+  adminUsers(@Headers('authorization') authorization?: string) {
+    return this.admin.adminUsers(this.token(authorization));
+  }
+
+  @Patch('admin-users/:id')
+  updateAdminUser(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      role?: 'owner' | 'admin' | 'support' | 'viewer';
+      isActive?: boolean;
+      displayName?: string;
+    },
+  ) {
+    return this.admin.updateAdminUser(
+      this.token(authorization),
+      id,
+      body,
+    );
   }
 }

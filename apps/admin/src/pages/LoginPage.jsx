@@ -26,7 +26,7 @@ export default function LoginPage({ onAuthenticated }) {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="brand">
-          <div className="brand-mark">UL</div>
+          <img className="brand-logo" src="/universallive-app-icon.png" alt="Universal Live" />
           <div>
             <strong>Universal <span>Live</span></strong>
             <div className="muted">Admin Console</div>
@@ -36,7 +36,7 @@ export default function LoginPage({ onAuthenticated }) {
         <div className="eyebrow">Secure access</div>
         <h1>Admin sign in</h1>
         <p className="muted">
-          Use an authorized Universal Live admin account.
+          Sign in with an authorized Universal Live admin account. Creator/mobile accounts cannot access this console.
         </p>
 
         {error ? <div className="error">{error}</div> : null}

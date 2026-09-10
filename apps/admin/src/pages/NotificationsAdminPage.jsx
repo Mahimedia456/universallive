@@ -80,7 +80,7 @@ export default function NotificationsAdminPage() {
                 <strong>{row.title}</strong>
                 <div className="muted">{row.body}</div>
               </div>
-              <div className="status">{row.is_read ? 'READ' : 'UNREAD'}</div>
+              <div className="status">{row.read_at ? 'READ' : 'UNREAD'}</div>
             </div>
           ))}
         </div>

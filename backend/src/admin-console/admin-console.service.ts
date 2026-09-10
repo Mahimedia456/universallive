@@ -66,6 +66,73 @@ export class AdminConsoleService {
     );
   }
 
+  async login(email: string, password: string) {
+    if (!email?.trim() || !password) {
+      throw new BadRequestException('Email and password are required');
+    }
+
+    const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+    const publicKey =
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      '';
+
+    if (!baseUrl || !publicKey) {
+      throw new UnauthorizedException('Authentication service is not configured');
+    }
+
+    const response = await fetch(
+      `${baseUrl}/auth/v1/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: publicKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      },
+    );
+
+    const payload: any = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.access_token) {
+      throw new UnauthorizedException(
+        payload?.error_description ||
+          payload?.message ||
+          'Invalid admin email or password',
+      );
+    }
+
+    let adminContext: AdminContext;
+    try {
+      adminContext = await this.context(payload.access_token);
+    } catch {
+      throw new ForbiddenException(
+        'This account is valid but does not have Universal Live admin access',
+      );
+    }
+
+    return {
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token || null,
+      expires_in: payload.expires_in || null,
+      token_type: payload.token_type || 'bearer',
+      admin: {
+        id: adminContext.admin.id,
+        userId: adminContext.user.id,
+        email: adminContext.user.email,
+        displayName:
+          adminContext.admin.display_name ||
+          adminContext.user.user_metadata?.full_name ||
+          adminContext.user.email,
+        role: adminContext.admin.role,
+      },
+    };
+  }
+
   async me(accessToken: string) {
     const { user, admin } = await this.context(accessToken);
 
@@ -354,7 +421,7 @@ export class AdminConsoleService {
     await this.context(accessToken);
 
     return await this.supabase.adminRest<any[]>(
-      'ul_notifications?select=id,user_id,title,body,is_read,created_at&order=created_at.desc&limit=200',
+      'ul_notifications?select=id,user_id,type,title,body,severity,read_at,created_at&order=created_at.desc&limit=200',
       { method: 'GET' },
     );
   }
@@ -414,9 +481,11 @@ export class AdminConsoleService {
           body: JSON.stringify(
             userIds.map((userId) => ({
               user_id: userId,
+              type: 'admin_broadcast',
               title: body.title,
               body: body.body,
-              is_read: false,
+              severity: 'info',
+              read_at: null,
             })),
           ),
         },
@@ -471,7 +540,7 @@ export class AdminConsoleService {
     this.requireRole(ctx, ['owner', 'admin']);
 
     return await this.supabase.adminRest<any[]>(
-      'ul_system_flags?select=*&order=updated_at.desc',
+      'ul_system_flags?select=key,value,description,is_public&order=key.asc',
       { method: 'GET' },
     );
   }
@@ -485,16 +554,15 @@ export class AdminConsoleService {
     this.requireRole(ctx, ['owner']);
 
     const result = await this.supabase.adminRest<any[]>(
-      'ul_system_flags?on_conflict=flag_key',
+      'ul_system_flags?on_conflict=key',
       {
         method: 'POST',
         headers: {
           Prefer: 'resolution=merge-duplicates,return=representation',
         },
         body: JSON.stringify({
-          flag_key: key,
-          flag_value: value,
-          updated_at: new Date().toISOString(),
+          key,
+          value,
         }),
       },
     );
@@ -528,5 +596,176 @@ export class AdminConsoleService {
       recentSecurityEvents: security || [],
       checkedAt: new Date().toISOString(),
     };
+  }
+
+
+  async creatorDetail(accessToken: string, userId: string) {
+    await this.context(accessToken);
+
+    const [profile, entitlement, connections, scenes, broadcasts, support] =
+      await Promise.all([
+        this.supabase.adminRest<any[]>(
+          `ul_creator_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*`,
+          { method: 'GET' },
+        ),
+        this.supabase.adminRest<any[]>(
+          `ul_user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=*`,
+          { method: 'GET' },
+        ),
+        this.supabase.adminRest<any[]>(
+          `ul_streaming_connections?user_id=eq.${encodeURIComponent(userId)}&select=id,platform,display_name,status,is_default,is_enabled,last_tested_at,last_error_message,created_at`,
+          { method: 'GET' },
+        ),
+        this.supabase.adminRest<any[]>(
+          `ul_scenes?user_id=eq.${encodeURIComponent(userId)}&select=id,name,is_default,aspect_ratio,width,height,created_at`,
+          { method: 'GET' },
+        ),
+        this.supabase.adminRest<any[]>(
+          `ul_broadcast_sessions?user_id=eq.${encodeURIComponent(userId)}&select=id,title,status,started_at,ended_at,created_at&order=created_at.desc&limit=20`,
+          { method: 'GET' },
+        ),
+        this.supabase.adminRest<any[]>(
+          `ul_support_tickets?user_id=eq.${encodeURIComponent(userId)}&select=id,subject,status,priority,created_at&order=created_at.desc&limit=20`,
+          { method: 'GET' },
+        ),
+      ]);
+
+    return {
+      profile: profile?.[0] || null,
+      entitlement: entitlement?.[0] || null,
+      connections,
+      scenes,
+      broadcasts,
+      support,
+    };
+  }
+
+  async broadcastDetail(accessToken: string, id: string) {
+    await this.context(accessToken);
+
+    const [session, destinations, telemetry, events] = await Promise.all([
+      this.supabase.adminRest<any[]>(
+        `ul_broadcast_sessions?id=eq.${encodeURIComponent(id)}&select=*`,
+        { method: 'GET' },
+      ),
+      this.supabase.adminRest<any[]>(
+        `ul_broadcast_destinations?session_id=eq.${encodeURIComponent(id)}&select=*`,
+        { method: 'GET' },
+      ).catch(() => []),
+      this.supabase.adminRest<any[]>(
+        `ul_stream_telemetry?session_id=eq.${encodeURIComponent(id)}&select=*&order=sampled_at.desc&limit=100`,
+        { method: 'GET' },
+      ).catch(() => []),
+      this.supabase.adminRest<any[]>(
+        `ul_stream_events?session_id=eq.${encodeURIComponent(id)}&select=*&order=created_at.desc&limit=100`,
+        { method: 'GET' },
+      ).catch(() => []),
+    ]);
+
+    if (!session?.length) throw new NotFoundException('Broadcast not found');
+
+    return {
+      session: session[0],
+      destinations,
+      telemetry,
+      events,
+    };
+  }
+
+  async supportDetail(accessToken: string, id: string) {
+    await this.context(accessToken);
+
+    const [ticket, messages] = await Promise.all([
+      this.supabase.adminRest<any[]>(
+        `ul_support_tickets?id=eq.${encodeURIComponent(id)}&select=*`,
+        { method: 'GET' },
+      ),
+      this.supabase.adminRest<any[]>(
+        `ul_support_messages?ticket_id=eq.${encodeURIComponent(id)}&select=*&order=created_at.asc`,
+        { method: 'GET' },
+      ),
+    ]);
+
+    if (!ticket?.length) throw new NotFoundException('Support ticket not found');
+
+    return { ticket: ticket[0], messages };
+  }
+
+  async replySupport(accessToken: string, id: string, message: string) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner', 'admin', 'support']);
+
+    if (!message?.trim()) {
+      throw new BadRequestException('Message is required');
+    }
+
+    const result = await this.supabase.adminRest<any[]>(
+      'ul_support_messages',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ticket_id: id,
+          sender_type: 'admin',
+          user_id: ctx.user.id,
+          message: message.trim(),
+        }),
+      },
+    );
+
+    await this.supabase.adminRest<any[]>(
+      `ul_support_tickets?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'in_progress',
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    );
+
+    await this.audit(ctx, 'support.reply', 'support_ticket', id);
+    return result?.[0] || result;
+  }
+
+  async adminUsers(accessToken: string) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner']);
+
+    return await this.supabase.adminRest<any[]>(
+      'ul_admin_users?select=id,user_id,role,is_active,display_name,created_at,updated_at&order=created_at.asc',
+      { method: 'GET' },
+    );
+  }
+
+  async updateAdminUser(
+    accessToken: string,
+    id: string,
+    body: {
+      role?: 'owner' | 'admin' | 'support' | 'viewer';
+      isActive?: boolean;
+      displayName?: string;
+    },
+  ) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner']);
+
+    const patch: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.role !== undefined) patch.role = body.role;
+    if (body.isActive !== undefined) patch.is_active = body.isActive;
+    if (body.displayName !== undefined) patch.display_name = body.displayName;
+
+    const result = await this.supabase.adminRest<any[]>(
+      `ul_admin_users?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      },
+    );
+
+    await this.audit(ctx, 'admin_user.update', 'admin_user', id, body);
+    return result?.[0] || result;
   }
 }

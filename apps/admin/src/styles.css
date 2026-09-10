@@ -195,3 +195,19 @@ h1 { margin: 5px 0 0; font-size: 28px; }
   .grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .section { grid-template-columns: 1fr; }
 }
+
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  display: block;
+  object-fit: contain;
+  border-radius: 11px;
+  flex: 0 0 auto;
+}
+
+.login-card .brand-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+}

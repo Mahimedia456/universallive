@@ -46,8 +46,8 @@ export default function SystemPage() {
           <div className="eyebrow">System flags</div>
           {flags.length ? flags.map((flag,index) => (
             <div className="list-row" key={flag.id || flag.flag_key || index}>
-              <strong>{flag.flag_key || flag.key || 'flag'}</strong>
-              <div className="status">ACTIVE</div>
+              <strong>{flag.key || 'flag'}</strong>
+              <div className="status">{flag.is_public ? 'PUBLIC' : 'PRIVATE'}</div>
             </div>
           )) : <div className="muted">No system flags returned.</div>}
         </div>

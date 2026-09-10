@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 
-export default function CreatorsPage() {
+export default function CreatorsPage({ onOpenCreator }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 
@@ -51,6 +51,7 @@ export default function CreatorsPage() {
               <option value="creator">Creator</option>
               <option value="pro">Pro</option>
             </select>
+            <button className="btn" style={{marginLeft:10}} onClick={() => onOpenCreator?.(row.user_id)}>View</button>
           </div>
         ))}
       </div>

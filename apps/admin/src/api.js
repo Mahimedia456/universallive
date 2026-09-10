@@ -41,23 +41,20 @@ export async function api(path, options = {}) {
 }
 
 export async function login(email, password) {
-  const payload = await api('auth/mobile/login', {
+  const payload = await api('admin-console/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
 
   const token = payload?.access_token;
-  if (!token) throw new Error('Login did not return an access token');
+  const admin = payload?.admin;
+
+  if (!token || !admin) {
+    throw new Error('Admin login did not return a valid admin session');
+  }
 
   localStorage.setItem(TOKEN_KEY, token);
-
-  try {
-    const admin = await api('admin-console/me');
-    return admin;
-  } catch (error) {
-    clearToken();
-    throw error;
-  }
+  return admin;
 }
 
 export async function logout() {

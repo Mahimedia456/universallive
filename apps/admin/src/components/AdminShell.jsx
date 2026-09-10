@@ -8,6 +8,7 @@ import {
   LogOut,
   RadioTower,
   ServerCog,
+  ShieldCheck,
   WalletCards,
 } from 'lucide-react';
 
@@ -27,6 +28,7 @@ export default function AdminShell({
     ['notifications', 'Notifications', BellRing],
     ['support', 'Support', LifeBuoy],
     ['audit', 'Audit Log', ClipboardList],
+    ['admins', 'Admin Users', ShieldCheck],
     ['system', 'System', ServerCog],
   ];
 
@@ -34,7 +36,7 @@ export default function AdminShell({
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">UL</div>
+          <img className="brand-logo" src="/universallive-app-icon.png" alt="Universal Live" />
           <div>
             <strong>Universal <span>Live</span></strong>
             <div className="muted">Admin Console</div>
