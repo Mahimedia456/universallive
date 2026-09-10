@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.universallive.app.components.*
 import com.universallive.app.navigation.AppDestination
 import com.universallive.app.navigation.AppRoute
+import com.universallive.app.integration.MobileIntegrationState
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.PublishStatus
 import com.universallive.app.streaming.facecam.FacecamState
@@ -23,6 +24,7 @@ import com.universallive.app.streaming.overlays.SceneState
 import com.universallive.app.streaming.preview.LiveOutputPreview
 import com.universallive.app.streaming.state.StreamConfigState
 import com.universallive.app.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun LiveBroadcastV2Screen(
@@ -30,6 +32,7 @@ fun LiveBroadcastV2Screen(
     captureController: CaptureController,
     facecamState: FacecamState,
     sceneState: SceneState,
+    integrationState: MobileIntegrationState,
     onRoute: (AppRoute) -> Unit,
     onDestination: (AppDestination) -> Unit,
 ) {
@@ -37,6 +40,22 @@ fun LiveBroadcastV2Screen(
     val config = streamState.config
     val live = snap.publishStatus == PublishStatus.LIVE
     val bitrateKbps = (snap.networkBitrateBps / 1000L).coerceAtLeast(0L)
+
+    LaunchedEffect(integrationState.activeBroadcast?.id, snap.publishStatus, snap.status) {
+        if (integrationState.activeBroadcast != null &&
+            (snap.isActive || snap.isPublishing)
+        ) {
+            while (true) {
+                integrationState.heartbeat(
+                    bitrateKbps = bitrateKbps.toInt().takeIf { it > 0 },
+                    fps = (snap.encoderFps.takeIf { it > 0 } ?: config.fps.value).toDouble(),
+                    droppedFrames = 0,
+                    networkStatus = snap.publishStatus.name.lowercase(),
+                )
+                delay(15_000)
+            }
+        }
+    }
 
     AppScaffold(
         title = "Live",
@@ -90,7 +109,28 @@ fun LiveBroadcastV2Screen(
                     .background(AppBackgroundSecondary)
                     .border(1.dp, AppPrimary.copy(alpha = .55f), RoundedCornerShape(20.dp)),
             ) {
-                LiveOutputPreview(Modifier.fillMaxSize())
+                if (snap.compositorActive) {
+                    LiveOutputPreview(Modifier.fillMaxSize())
+                } else {
+                    Column(
+                        Modifier.align(Alignment.Center).padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "DIRECT SCREEN CAPTURE",
+                            color = AppPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Android is sending the device screen directly to the H.264 encoder.",
+                            color = AppTextSecondary,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
 
                 Row(
                     Modifier
@@ -103,7 +143,7 @@ fun LiveBroadcastV2Screen(
                 ) {
                     Text(
                         "LIVE",
-                        color = AppText,
+                        color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -177,11 +217,12 @@ fun LiveBroadcastV2Screen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = AppText, disabledContentColor = AppText.copy(alpha = .70f)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = androidx.compose.ui.graphics.Color.White, disabledContentColor = androidx.compose.ui.graphics.Color.White),
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Text(
                     "End Stream",
+                    color = androidx.compose.ui.graphics.Color.White,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -461,7 +502,7 @@ fun EndStreamConfirmationScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = AppText, disabledContentColor = AppText.copy(alpha = .70f)),
+            colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = androidx.compose.ui.graphics.Color.White, disabledContentColor = androidx.compose.ui.graphics.Color.White),
             shape = RoundedCornerShape(16.dp),
         ) {
             Text("End Stream", fontWeight = FontWeight.Bold)

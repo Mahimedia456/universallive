@@ -175,6 +175,7 @@ fun RootNavigation(
             captureController = captureController,
             facecamState = facecamState,
             sceneState = sceneState,
+            integrationState = integrationState,
             onRoute = onRouteChanged,
             onDestination = goMain,
         )

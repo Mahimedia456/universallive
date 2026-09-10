@@ -20,7 +20,7 @@ enum class StreamOrientation(val label: String) {
 data class StreamConfig(
     val resolution: StreamResolution = StreamResolution.P1080,
     val fps: StreamFps = StreamFps.FPS60,
-    val bitrateKbps: Int = 8000,
+    val bitrateKbps: Int = 6800,
     val orientation: StreamOrientation = StreamOrientation.Landscape,
     val microphoneEnabled: Boolean = true,
     val internalAudioEnabled: Boolean = true,
@@ -37,5 +37,5 @@ data class StreamConfig(
 }
 
 object StreamConfigLimits {
-    val bitrateOptionsKbps = listOf(2000, 3500, 4500, 6000, 8000, 10000, 12000)
+    val bitrateOptionsKbps = listOf(2000, 3500, 4500, 6000, 6800, 8000, 10000, 12000)
 }

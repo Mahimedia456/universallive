@@ -11,6 +11,11 @@ export class BroadcastSessionsController {
     return this.service.create(bearerToken(auth), body);
   }
 
+  @Get('active/current')
+  current(@Headers('authorization') auth: string | undefined) {
+    return this.service.current(bearerToken(auth));
+  }
+
   @Get(':id')
   get(@Headers('authorization') auth: string | undefined, @Param('id') id: string) {
     return this.service.get(bearerToken(auth), id);

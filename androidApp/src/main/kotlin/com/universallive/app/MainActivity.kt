@@ -10,6 +10,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.universallive.app.streaming.CaptureBridge
@@ -20,6 +23,7 @@ import com.universallive.app.streaming.capture.CaptureMode
 
 class MainActivity : ComponentActivity() {
     private lateinit var captureController: CaptureController
+    private var openLiveRequested by mutableStateOf(false)
 
     private val capturePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -76,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openLiveRequested = intent?.getBooleanExtra(EXTRA_OPEN_LIVE_SCREEN, false) == true
 
         captureController = CaptureController(
             requestStart = { requestCapturePermissions() },
@@ -107,7 +112,17 @@ class MainActivity : ComponentActivity() {
             UniversalLiveApp(
                 captureController = captureController,
                 mobileBackendApi = AndroidMobileBackendApi(applicationContext),
+                openLiveRequested = openLiveRequested,
+                onOpenLiveConsumed = { openLiveRequested = false },
             )
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_LIVE_SCREEN, false)) {
+            openLiveRequested = true
         }
     }
 
@@ -148,4 +163,9 @@ class MainActivity : ComponentActivity() {
         CaptureBridge.listener = null
         super.onDestroy()
     }
+
+    companion object {
+        const val EXTRA_OPEN_LIVE_SCREEN = "open_live_screen"
+    }
+
 }

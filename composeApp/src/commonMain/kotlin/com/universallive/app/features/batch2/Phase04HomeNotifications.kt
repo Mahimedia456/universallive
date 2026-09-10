@@ -72,7 +72,7 @@ fun HomeV2Screen(
 
             InfoCard("Current Scene", "Main Camera • 1080p • 30 fps")
             InfoCard("Default Destination", "YouTube • Public", "CONNECTED")
-            InfoCard("Stream Quality", "1080p • 30 fps • 8 Mbps")
+            InfoCard("Stream Quality", "1080p • 30 fps • 6.8 Mbps")
             InfoCard("Recent Stream", "Product Launch • 1h 24m • Completed")
             InfoCard(
                 "Current Plan",

@@ -581,6 +581,14 @@ class AndroidMobileBackendApi(
         broadcastFrom(JSONObject(response))
     }
 
+    override suspend fun activeBroadcastSession(): Result<BroadcastSession?> = runCatching {
+        val response = request(
+            "streams/sessions/active/current",
+            authenticated = true,
+        ).trim()
+        if (response.isBlank() || response == "null") null else broadcastFrom(JSONObject(response))
+    }
+
     override suspend fun heartbeatBroadcastSession(id: String): Result<Unit> = runCatching {
         request(
             "streams/sessions/$id/heartbeat",

@@ -45,7 +45,10 @@ class MobileIntegrationState(
         return try {
             val restored = api.restoreSession().getOrThrow()
             session = restored
-            if (restored != null) refreshAccount()
+            if (restored != null) {
+                refreshAccount()
+                activeBroadcast = api.activeBroadcastSession().getOrNull()
+            }
             restored != null
         } catch (_: Throwable) {
             session = null

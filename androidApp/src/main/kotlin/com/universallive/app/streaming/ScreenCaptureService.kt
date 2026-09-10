@@ -152,7 +152,7 @@ class ScreenCaptureService : Service() {
         val requestedWidth = intent.getIntExtra(EXTRA_VIDEO_WIDTH, 1920).coerceAtLeast(320)
         val requestedHeight = intent.getIntExtra(EXTRA_VIDEO_HEIGHT, 1080).coerceAtLeast(240)
         encoderFps = intent.getIntExtra(EXTRA_VIDEO_FPS, 60).coerceIn(15, 60)
-        encoderBitrateKbps = intent.getIntExtra(EXTRA_VIDEO_BITRATE_KBPS, 8000).coerceIn(500, 50000)
+        encoderBitrateKbps = intent.getIntExtra(EXTRA_VIDEO_BITRATE_KBPS, 6800).coerceIn(500, 50000)
         val orientation = intent.getStringExtra(EXTRA_VIDEO_ORIENTATION) ?: "Landscape"
         rtmpServerUrl = intent.getStringExtra(EXTRA_RTMP_SERVER_URL).orEmpty().trim()
         streamKey = intent.getStringExtra(EXTRA_STREAM_KEY).orEmpty().trim()
@@ -195,38 +195,53 @@ class ScreenCaptureService : Service() {
             startRtmpPublisherIfConfigured()
             prepareVideoEncoder()
             val encoderSurface = requireNotNull(encoderInputSurface) { "Encoder input surface was not created" }
-            streamCompositor = StreamCompositor(
-                encoderSurface = encoderSurface,
-                width = encoderWidth,
-                height = encoderHeight,
-                facecam = FacecamRenderConfig(
-                    enabled = facecamEnabled,
-                    shape = facecamShape,
-                    x = facecamX,
-                    y = facecamY,
-                    size = facecamSize,
-                    mirrored = facecamMirrored,
-                ),
-                overlays = parseOverlayPayload(overlayPayload),
-            ).also { it.start(); compositorActive = true }
-            val surface = requireNotNull(streamCompositor).screenInputSurface()
-            if (facecamEnabled) {
-                facecamCamera = FacecamCameraController(this).also { camera ->
-                    camera.start(
-                        facecamLens,
-                        requireNotNull(streamCompositor).cameraInputSurface(),
-                        onStarted = {
-                            facecamActive = true
-                            publishSnapshot(CaptureStatus.CAPTURING, "Screen + facecam compositor active", currentAudioMessage())
-                        },
-                        onError = { warning ->
-                            facecamActive = false
-                            publishMessage = warning
-                            publishSnapshot(CaptureStatus.CAPTURING, "Screen compositor active; facecam unavailable", currentAudioMessage())
-                        },
-                    )
+            val preparedOverlays = parseOverlayPayload(overlayPayload)
+            val needsCompositor = facecamEnabled || preparedOverlays.isNotEmpty()
+
+            // The normal/default path sends MediaProjection directly into MediaCodec. This is the
+            // most reliable Android capture route and avoids device-specific black frames caused by
+            // an unnecessary SurfaceTexture/OpenGL hop. We only enable the compositor when the
+            // broadcast actually needs facecam or overlay rendering.
+            val captureSurface: Surface = if (needsCompositor) {
+                streamCompositor = StreamCompositor(
+                    encoderSurface = encoderSurface,
+                    width = encoderWidth,
+                    height = encoderHeight,
+                    facecam = FacecamRenderConfig(
+                        enabled = facecamEnabled,
+                        shape = facecamShape,
+                        x = facecamX,
+                        y = facecamY,
+                        size = facecamSize,
+                        mirrored = facecamMirrored,
+                    ),
+                    overlays = preparedOverlays,
+                ).also { it.start(); compositorActive = true }
+
+                if (facecamEnabled) {
+                    facecamCamera = FacecamCameraController(this).also { camera ->
+                        camera.start(
+                            facecamLens,
+                            requireNotNull(streamCompositor).cameraInputSurface(),
+                            onStarted = {
+                                facecamActive = true
+                                publishSnapshot(CaptureStatus.CAPTURING, "Screen + facecam compositor active", currentAudioMessage())
+                            },
+                            onError = { warning ->
+                                facecamActive = false
+                                publishMessage = warning
+                                publishSnapshot(CaptureStatus.CAPTURING, "Screen compositor active; facecam unavailable", currentAudioMessage())
+                            },
+                        )
+                    }
                 }
+                requireNotNull(streamCompositor).screenInputSurface()
+            } else {
+                compositorActive = false
+                facecamActive = false
+                encoderSurface
             }
+
             val densityDpi = resources.displayMetrics.densityDpi.coerceAtLeast(DisplayMetrics.DENSITY_LOW)
 
             virtualDisplay = mediaProjection?.createVirtualDisplay(
@@ -235,7 +250,7 @@ class ScreenCaptureService : Service() {
                 encoderHeight,
                 densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                surface,
+                captureSurface,
                 null,
                 null,
             )
@@ -249,7 +264,11 @@ class ScreenCaptureService : Service() {
             startAudioCapture()
             publishSnapshot(
                 CaptureStatus.CAPTURING,
-                if (facecamEnabled) "OpenGL compositor is feeding screen + facecam to H.264" else "OpenGL compositor is feeding screen to H.264",
+                when {
+                    facecamEnabled -> "Screen + facecam compositor is feeding H.264"
+                    preparedOverlays.isNotEmpty() -> "Screen + overlays compositor is feeding H.264"
+                    else -> "Direct Android screen capture is feeding H.264"
+                },
                 currentAudioMessage(),
             )
         } catch (t: Throwable) {
@@ -613,8 +632,12 @@ class ScreenCaptureService : Service() {
     }
 
     private fun buildLiveNotification(status: String, detail: String): Notification {
+        val openActivityIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_OPEN_LIVE_SCREEN, true)
+        }
         val openIntent = PendingIntent.getActivity(
-            this, 101, Intent(this, MainActivity::class.java),
+            this, 101, openActivityIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val stopIntent = PendingIntent.getService(

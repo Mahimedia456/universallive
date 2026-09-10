@@ -209,6 +209,7 @@ interface MobileBackendApi {
         sceneId: String? = null,
     ): Result<BroadcastSession>
     suspend fun startBroadcastSession(id: String): Result<BroadcastSession>
+    suspend fun activeBroadcastSession(): Result<BroadcastSession?>
     suspend fun heartbeatBroadcastSession(id: String): Result<Unit>
     suspend fun endBroadcastSession(id: String): Result<BroadcastSession>
     suspend fun sendTelemetry(
@@ -266,6 +267,7 @@ class OfflineMobileBackendApi : MobileBackendApi {
 
     override suspend fun createBroadcastSession(title: String, connectionIds: List<String>, sceneId: String?) = unavailable<BroadcastSession>()
     override suspend fun startBroadcastSession(id: String) = unavailable<BroadcastSession>()
+    override suspend fun activeBroadcastSession() = unavailable<BroadcastSession?>()
     override suspend fun heartbeatBroadcastSession(id: String) = unavailable<Unit>()
     override suspend fun endBroadcastSession(id: String) = unavailable<BroadcastSession>()
     override suspend fun sendTelemetry(sessionId: String, bitrateKbps: Int?, fps: Double?, droppedFrames: Int?, networkStatus: String?) = unavailable<Unit>()

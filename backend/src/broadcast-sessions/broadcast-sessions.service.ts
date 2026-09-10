@@ -95,6 +95,16 @@ export class BroadcastSessionsService {
     return this.get(token, session.id);
   }
 
+  async current(token: string) {
+    const user = await this.db.currentUser(token);
+    const statuses = 'created,starting,connecting,live,reconnecting,stopping';
+    const sessions = await this.db.adminRest<any[]>(
+      `ul_broadcast_sessions?user_id=eq.${encodeURIComponent(user.id)}&status=in.(${statuses})&select=*&order=created_at.desc&limit=1`,
+      { method: 'GET' },
+    );
+    return sessions?.[0] ?? null;
+  }
+
   async get(token: string, id: string) {
     const user = await this.db.currentUser(token);
 

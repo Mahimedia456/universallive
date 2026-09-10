@@ -13,7 +13,7 @@ data class RecommendedProfile(
 object PerformancePolicy {
     fun recommend(thermal: ThermalState, uploadKbps: Int? = null): RecommendedProfile {
         val base = when (thermal) {
-            ThermalState.NORMAL -> RecommendedProfile(1920, 1080, 30, 8000, "Quality profile")
+            ThermalState.NORMAL -> RecommendedProfile(1920, 1080, 30, 6800, "Quality profile")
             ThermalState.WARM -> RecommendedProfile(1280, 720, 60, 6000, "Balanced thermal profile")
             ThermalState.HOT -> RecommendedProfile(1280, 720, 30, 4000, "Reduced thermal load")
             ThermalState.CRITICAL -> RecommendedProfile(854, 480, 30, 2500, "Critical thermal protection")

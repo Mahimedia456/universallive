@@ -57,7 +57,7 @@ fun HomeScreen(
                         onClick = { onDestinationChanged(AppDestination.GoLive) },
                         modifier = Modifier.fillMaxWidth().height(54.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = AppText, disabledContentColor = AppText.copy(alpha = .70f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = androidx.compose.ui.graphics.Color.White, disabledContentColor = androidx.compose.ui.graphics.Color.White),
                     ) { Text("OPEN LIVE STUDIO", fontWeight = FontWeight.Bold, fontSize = 15.sp) }
                 }
             }

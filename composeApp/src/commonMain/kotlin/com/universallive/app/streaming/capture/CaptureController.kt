@@ -61,7 +61,7 @@ class CaptureController(
     var requestedWidth: Int = 1920; private set
     var requestedHeight: Int = 1080; private set
     var requestedFps: Int = 60; private set
-    var requestedBitrateKbps: Int = 8000; private set
+    var requestedBitrateKbps: Int = 6800; private set
     var requestedOrientation: String = "Landscape"; private set
     var requestedRtmpServerUrl: String = ""; private set
     var requestedStreamKey: String = ""; private set

@@ -17,6 +17,12 @@ cd E:\UniversalLive
 .\gradlew.bat :androidApp:assembleDebug
 
 
+cd E:\UniversalLive
+
+Get-ChildItem -Path . -Filter "*.apk" -Recurse |
+    Select-Object -ExpandProperty FullName
+
+
 
 
 

@@ -511,7 +511,7 @@ fun ConnectedSceneLibraryScreen(
             Button(
                 onClick = { scope.launch { state.removeSelectedScene() } },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = AppText),
+                colors = ButtonDefaults.buttonColors(containerColor = AppLive, contentColor = androidx.compose.ui.graphics.Color.White),
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Text("Archive Selected Scene", fontWeight = FontWeight.Bold)

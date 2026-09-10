@@ -35,7 +35,7 @@ fun UlPrimaryButton(
             containerColor = AppPrimary,
             contentColor = Color.White,
             disabledContainerColor = AppPrimary.copy(alpha = .34f),
-            disabledContentColor = Color.White.copy(alpha = .62f),
+            disabledContentColor = Color.White,
         ),
     ) {
         if (loading) {
@@ -45,7 +45,7 @@ fun UlPrimaryButton(
                 color = Color.White,
             )
         } else {
-            Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
