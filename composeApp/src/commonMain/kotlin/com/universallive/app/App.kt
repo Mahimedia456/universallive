@@ -5,6 +5,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.universallive.app.navigation.AppRoute
+import com.universallive.app.integration.MobileBackendApi
+import com.universallive.app.integration.MobileIntegrationState
+import com.universallive.app.integration.OfflineMobileBackendApi
 import com.universallive.app.navigation.RootNavigation
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.connections.RtmpProfilesState
@@ -17,6 +20,7 @@ import com.universallive.app.theme.UniversalLiveTheme
 @Composable
 fun UniversalLiveApp(
     captureController: CaptureController = CaptureController(),
+    mobileBackendApi: MobileBackendApi = OfflineMobileBackendApi(),
 ) {
     UniversalLiveTheme {
         var route by remember { mutableStateOf<AppRoute>(AppRoute.Splash) }
@@ -26,6 +30,7 @@ fun UniversalLiveApp(
         val facecamState = remember { FacecamState() }
         val overlayState = remember { OverlayState() }
         val sceneState = remember { SceneState() }
+        val integrationState = remember(mobileBackendApi) { MobileIntegrationState(mobileBackendApi) }
 
         Surface(modifier = Modifier.fillMaxSize()) {
             RootNavigation(
@@ -36,6 +41,7 @@ fun UniversalLiveApp(
                 facecamState = facecamState,
                 overlayState = overlayState,
                 sceneState = sceneState,
+                integrationState = integrationState,
                 onRouteChanged = { route = it },
             )
         }

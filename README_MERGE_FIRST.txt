@@ -1,35 +1,51 @@
-UNIVERSAL LIVE — FINAL MOBILE POLISHED BUILD FIX
+UNIVERSAL LIVE — MOBILE INTEGRATION BATCH 01
+PHASE 1 + PHASE 2
 
 MERGE INTO:
 E:\UniversalLive
 
-FIXED:
-1. Android compile failure:
-   unresolved kotlinx.serialization.json.JsonObject
+IMPORTANT:
+This is the first batch that replaces mock authentication/profile membership
+with actual calls to the deployed NestJS backend.
 
-2. Cyan primary buttons had dark/grey text.
-   All primary action text is now white.
+API:
+https://universallive.vercel.app/api/v1
 
-3. Disabled cyan buttons use readable white-alpha text.
+STEP 1 — MERGE ZIP
 
-4. Red LIVE/destructive filled buttons use white text.
-
-5. Destination screen Free-plan copy clarified:
-   multiple connections may be managed;
-   only simultaneous LIVE count is plan-limited.
-
-6. Existing final Profile / Channel Connections polish preserved.
-
-7. No Android streaming engine files are replaced.
-
-8. iOS target is preserved.
-
-BUILD:
-
+STEP 2 — BUILD BACKEND + MOBILE:
 cd E:\UniversalLive
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\tools\final-mobile-polish-build-debug.ps1
+.\tools\mobile-integration-batch01-build.ps1
+
+STEP 3 — PUSH BACKEND RECOVERY ENDPOINTS:
+cd E:\UniversalLive
+git add .
+git commit -m "Mobile integration batch 01 auth profile membership"
+git push origin main
+
+Wait for Vercel deployment.
+
+STEP 4 — TEST PUBLIC CONTRACT:
+cd E:\UniversalLive
+.\tools\test-mobile-auth-api.ps1
+
+STEP 5 — BUILD FRESH APK AFTER VERCEL DEPLOY:
+cd E:\UniversalLive
+.\gradlew.bat :androidApp:assembleDebug
 
 APK:
-
 E:\UniversalLive\androidApp\build\outputs\apk\debug\androidApp-debug.apk
+
+TEST:
+- sign in with FREE account -> Profile badge must show FREE
+- sign out
+- sign in with CREATOR account -> Profile badge must show CREATOR
+- sign out
+- sign in with PRO account -> Profile badge must show PRO
+- kill/reopen app -> session should restore
+- Profile name/username should come from backend
+
+SECURITY:
+No SUPABASE_SECRET_KEY is compiled into mobile.
+Mobile only knows the public NestJS API URL.

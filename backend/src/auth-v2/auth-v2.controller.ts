@@ -63,6 +63,20 @@ export class AuthV2Controller {
     return this.auth.requestPasswordReset(body.email);
   }
 
+  @Post('verify-recovery')
+  verifyRecovery(@Body() body: { email: string; token: string }) {
+    return this.auth.verifyRecovery(body);
+  }
+
+  @Post('update-password')
+  updatePassword(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { password: string },
+  ) {
+    const token = (authorization || '').replace(/^Bearer\s+/i, '').trim();
+    return this.auth.updatePassword(token, body.password);
+  }
+
   @Post('logout')
   logout(@Headers('authorization') authorization?: string) {
     const token = (authorization || '').replace(/^Bearer\s+/i, '');

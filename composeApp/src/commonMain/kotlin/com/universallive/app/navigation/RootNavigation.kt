@@ -1,6 +1,7 @@
 package com.universallive.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import com.universallive.app.features.activity.ActivityScreen
 import com.universallive.app.features.auth.*
 import com.universallive.app.features.batch2.*
@@ -9,6 +10,8 @@ import com.universallive.app.features.batch4.*
 import com.universallive.app.features.batch5.*
 import com.universallive.app.features.batch6.*
 import com.universallive.app.features.golive.GoLiveScreen
+import com.universallive.app.features.integration.*
+import com.universallive.app.integration.MobileIntegrationState
 import com.universallive.app.features.onboarding.*
 import com.universallive.app.features.overlays.OverlaysScreen
 import com.universallive.app.features.scenes.ScenesScreen
@@ -29,6 +32,7 @@ fun RootNavigation(
     facecamState: FacecamState,
     overlayState: OverlayState,
     sceneState: SceneState,
+    integrationState: MobileIntegrationState,
     onRouteChanged: (AppRoute) -> Unit,
 ) {
     val goMain: (AppDestination) -> Unit = { destination ->
@@ -38,14 +42,23 @@ fun RootNavigation(
     val connections = { onRouteChanged(AppRoute.Connections) }
 
     when (route) {
-        AppRoute.Splash -> SplashScreen { onRouteChanged(AppRoute.Welcome) }
+        AppRoute.Splash -> {
+            LaunchedEffect(Unit) {
+                val restored = integrationState.restore()
+                onRouteChanged(
+                    if (restored) AppRoute.Main(AppDestination.Home)
+                    else AppRoute.Welcome
+                )
+            }
+            SplashScreen { }
+        }
         AppRoute.Welcome -> WelcomeScreen(onRouteChanged)
-        AppRoute.SignIn -> SignInScreen(onRouteChanged)
-        AppRoute.CreateAccount -> CreateAccountScreen(onRouteChanged)
-        AppRoute.ForgotPassword -> ForgotPasswordScreen(onRouteChanged)
-        is AppRoute.VerifyEmail -> VerifyEmailScreen(route.flow, onRouteChanged)
+        AppRoute.SignIn -> ConnectedSignInScreen(integrationState, onRouteChanged)
+        AppRoute.CreateAccount -> ConnectedCreateAccountScreen(integrationState, onRouteChanged)
+        AppRoute.ForgotPassword -> ConnectedForgotPasswordScreen(integrationState, onRouteChanged)
+        is AppRoute.VerifyEmail -> ConnectedVerifyEmailScreen(integrationState, route.flow, onRouteChanged)
         is AppRoute.CodeExpired -> CodeExpiredScreen(route.flow, onRouteChanged)
-        AppRoute.CreateNewPassword -> CreateNewPasswordScreen(onRouteChanged)
+        AppRoute.CreateNewPassword -> ConnectedCreateNewPasswordScreen(integrationState, onRouteChanged)
         AppRoute.PasswordResetSuccess -> PasswordResetSuccessScreen(onRouteChanged)
         AppRoute.AccountCreatedSuccess -> AccountCreatedSuccessScreen(onRouteChanged)
         AppRoute.CreatorSetup -> CreatorSetupScreen(onRouteChanged)
@@ -228,7 +241,8 @@ fun RootNavigation(
         )
         AppRoute.ManageSubscription -> ManageSubscriptionScreen { onRouteChanged(AppRoute.Plans) }
 
-        AppRoute.AccountSecurity -> AccountSecurityScreen(
+        AppRoute.AccountSecurity -> ConnectedAccountSecurityScreen(
+            state = integrationState,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.Main(AppDestination.Settings)) },
         )
@@ -277,7 +291,7 @@ fun RootNavigation(
                 onDestination = goMain,
             )
             AppDestination.Activity -> ActivityV2Screen(onRouteChanged, goMain)
-            AppDestination.Settings -> ProfileV2Screen(onRouteChanged, goMain)
+            AppDestination.Settings -> ConnectedProfileScreen(integrationState, onRouteChanged, goMain)
             AppDestination.Overlays -> OverlaysScreen(overlayState, goMain)
             AppDestination.Connections -> ConnectionsV2Screen(onRouteChanged, home)
         }

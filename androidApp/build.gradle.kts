@@ -1,3 +1,7 @@
+val universalLiveApiBaseUrl = providers.gradleProperty("UL_API_BASE_URL")
+    .orElse("https://universallive.vercel.app/api/v1")
+    .get()
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
@@ -13,7 +17,8 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 30
-        versionName = "0.30.0"
+        versionName = "0.31.0"
+        buildConfigField("String", "UNIVERSALLIVE_API_BASE_URL", "\"$universalLiveApiBaseUrl\"")
     }
 
     compileOptions {
@@ -23,6 +28,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

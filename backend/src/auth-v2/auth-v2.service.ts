@@ -143,4 +143,40 @@ export class AuthV2Service {
       this.normalizeError(e);
     }
   }
+
+  async verifyRecovery(input: { email: string; token: string }) {
+    try {
+      return await this.supabase.authRequest<AuthSessionResponse>('verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'recovery',
+          email: input.email.trim().toLowerCase(),
+          token: input.token.trim(),
+        }),
+      });
+    } catch (e) {
+      this.normalizeError(e);
+    }
+  }
+
+  async updatePassword(accessToken: string, password: string) {
+    if (!accessToken) {
+      throw new UnauthorizedException('Bearer token required');
+    }
+    if (!password || password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+
+    try {
+      return await this.supabase.authRequest('user', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+    } catch (e) {
+      this.normalizeError(e);
+    }
+  }
 }

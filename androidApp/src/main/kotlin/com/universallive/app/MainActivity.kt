@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.universallive.app.streaming.CaptureBridge
+import com.universallive.app.integration.AndroidMobileBackendApi
 import com.universallive.app.streaming.ScreenCaptureService
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.CaptureMode
@@ -102,7 +103,12 @@ class MainActivity : ComponentActivity() {
             runOnUiThread { captureController.update(snapshot) }
         }
 
-        setContent { UniversalLiveApp(captureController) }
+        setContent {
+            UniversalLiveApp(
+                captureController = captureController,
+                mobileBackendApi = AndroidMobileBackendApi(applicationContext),
+            )
+        }
     }
 
     private fun requestCapturePermissions() {
