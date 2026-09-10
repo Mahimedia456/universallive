@@ -1,0 +1,43 @@
+# UniversalLive Phase 30.4 - ScreenCaptureService targeted patch
+# This patch does not replace the whole service automatically.
+# Apply these two edits manually if your ScreenCaptureService.kt is not already updated.
+
+1) In startCapture(), KEEP this order:
+
+prepareVideoEncoder()
+val encoderSurface = requireNotNull(encoderInputSurface) { "Encoder input surface was not created" }
+
+streamCompositor = StreamCompositor(
+    encoderSurface = encoderSurface,
+    width = encoderWidth,
+    height = encoderHeight,
+    facecam = FacecamRenderConfig(
+        enabled = facecamEnabled,
+        shape = facecamShape,
+        x = facecamX,
+        y = facecamY,
+        size = facecamSize,
+        mirrored = facecamMirrored,
+    ),
+    overlays = parseOverlayPayload(overlayPayload),
+).also {
+    it.start()
+    compositorActive = true
+}
+
+val surface = requireNotNull(streamCompositor).screenInputSurface()
+
+virtualDisplay = mediaProjection?.createVirtualDisplay(
+    "UniversalLiveH264Capture",
+    encoderWidth,
+    encoderHeight,
+    densityDpi,
+    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR or
+        DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
+    surface,
+    null,
+    null,
+)
+
+2) Keep the already-fixed publishSnapshot implementation that explicitly creates
+   a CaptureSnapshot variable, publishes it, then calls updateLiveNotification(snapshot).

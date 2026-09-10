@@ -1,0 +1,2 @@
+Phase 20 build scripts can generate the wrapper from the Gradle 9.6.1 distribution already downloaded to %TEMP%\gradle-9.6.1 on the development PC.
+Run: .\tools\phase20-build-install-run.ps1

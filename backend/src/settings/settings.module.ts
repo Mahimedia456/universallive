@@ -1,0 +1,1 @@
+import { Module } from '@nestjs/common'; import { SupabaseModule } from '../supabase/supabase.module'; import { SettingsController } from './settings.controller'; @Module({imports:[SupabaseModule],controllers:[SettingsController]}) export class SettingsModule {}
