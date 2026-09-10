@@ -113,4 +113,79 @@ export class AdminConsoleController {
       body,
     );
   }
+
+
+  @Get('plans')
+  plans(@Headers('authorization') authorization?: string) {
+    return this.admin.plans(this.token(authorization));
+  }
+
+  @Patch('plans/:planKey')
+  updatePlan(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('planKey') planKey: string,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      sortOrder?: number;
+      entitlements?: Record<string, unknown>;
+    },
+  ) {
+    return this.admin.updatePlan(
+      this.token(authorization),
+      planKey,
+      body,
+    );
+  }
+
+  @Get('notifications')
+  notifications(@Headers('authorization') authorization?: string) {
+    return this.admin.notifications(this.token(authorization));
+  }
+
+  @Post('notifications/broadcast')
+  broadcastNotification(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      title: string;
+      body: string;
+      audience?: 'all' | 'free' | 'creator' | 'pro';
+    },
+  ) {
+    return this.admin.createNotificationBroadcast(
+      this.token(authorization),
+      body,
+    );
+  }
+
+  @Get('audit')
+  audit(@Headers('authorization') authorization?: string) {
+    return this.admin.auditLog(this.token(authorization));
+  }
+
+  @Get('system/flags')
+  flags(@Headers('authorization') authorization?: string) {
+    return this.admin.systemFlags(this.token(authorization));
+  }
+
+  @Patch('system/flags/:key')
+  updateFlag(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('key') key: string,
+    @Body() body: { value: unknown },
+  ) {
+    return this.admin.updateSystemFlag(
+      this.token(authorization),
+      key,
+      body.value,
+    );
+  }
+
+  @Get('system/health')
+  systemHealth(@Headers('authorization') authorization?: string) {
+    return this.admin.operationalHealth(this.token(authorization));
+  }
 }

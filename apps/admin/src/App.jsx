@@ -7,6 +7,10 @@ import CreatorsPage from './pages/CreatorsPage';
 import BroadcastsPage from './pages/BroadcastsPage';
 import ConnectionsPage from './pages/ConnectionsPage';
 import SupportPage from './pages/SupportPage';
+import PlansPage from './pages/PlansPage';
+import NotificationsAdminPage from './pages/NotificationsAdminPage';
+import AuditPage from './pages/AuditPage';
+import SystemPage from './pages/SystemPage';
 
 export default function App() {
   const [admin, setAdmin] = useState(null);
@@ -36,9 +40,13 @@ export default function App() {
   const content = {
     dashboard: <DashboardPage />,
     creators: <CreatorsPage />,
+    plans: <PlansPage />,
     broadcasts: <BroadcastsPage />,
     connections: <ConnectionsPage />,
+    notifications: <NotificationsAdminPage />,
     support: <SupportPage />,
+    audit: <AuditPage />,
+    system: <SystemPage />,
   }[page] || <DashboardPage />;
 
   return (

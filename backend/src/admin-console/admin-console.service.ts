@@ -302,4 +302,231 @@ export class AdminConsoleService {
 
     return result?.[0] || result;
   }
+
+
+  async plans(accessToken: string) {
+    await this.context(accessToken);
+
+    return await this.supabase.adminRest<any[]>(
+      'ul_plans?select=id,plan_key,name,description,is_active,sort_order,entitlements,created_at,updated_at&order=sort_order.asc',
+      { method: 'GET' },
+    );
+  }
+
+  async updatePlan(
+    accessToken: string,
+    planKey: string,
+    body: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      sortOrder?: number;
+      entitlements?: Record<string, unknown>;
+    },
+  ) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner', 'admin']);
+
+    const patch: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.description !== undefined) patch.description = body.description;
+    if (body.isActive !== undefined) patch.is_active = body.isActive;
+    if (body.sortOrder !== undefined) patch.sort_order = body.sortOrder;
+    if (body.entitlements !== undefined) patch.entitlements = body.entitlements;
+
+    const result = await this.supabase.adminRest<any[]>(
+      `ul_plans?plan_key=eq.${encodeURIComponent(planKey)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      },
+    );
+
+    await this.audit(ctx, 'plan.update', 'plan', planKey, body);
+
+    return result?.[0] || result;
+  }
+
+  async notifications(accessToken: string) {
+    await this.context(accessToken);
+
+    return await this.supabase.adminRest<any[]>(
+      'ul_notifications?select=id,user_id,title,body,is_read,created_at&order=created_at.desc&limit=200',
+      { method: 'GET' },
+    );
+  }
+
+  async createNotificationBroadcast(
+    accessToken: string,
+    body: {
+      title: string;
+      body: string;
+      audience?: 'all' | 'free' | 'creator' | 'pro';
+    },
+  ) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner', 'admin', 'support']);
+
+    const audience = body.audience || 'all';
+
+    let userIds: string[] = [];
+
+    if (audience === 'all') {
+      const profiles = await this.supabase.adminRest<any[]>(
+        'ul_creator_profiles?select=user_id',
+        { method: 'GET' },
+      );
+
+      userIds = profiles.map((item) => item.user_id);
+    } else {
+      const entitlements = await this.supabase.adminRest<any[]>(
+        `ul_user_entitlements?plan_key=eq.${encodeURIComponent(audience)}&status=eq.active&select=user_id`,
+        { method: 'GET' },
+      );
+
+      userIds = entitlements.map((item) => item.user_id);
+    }
+
+    const jobRows = await this.supabase.adminRest<any[]>(
+      'ul_admin_notification_jobs',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin_user_id: ctx.user.id,
+          title: body.title,
+          body: body.body,
+          audience,
+          status: 'created',
+        }),
+      },
+    );
+
+    const job = jobRows?.[0];
+
+    if (userIds.length > 0) {
+      await this.supabase.adminRest(
+        'ul_notifications',
+        {
+          method: 'POST',
+          body: JSON.stringify(
+            userIds.map((userId) => ({
+              user_id: userId,
+              title: body.title,
+              body: body.body,
+              is_read: false,
+            })),
+          ),
+        },
+      );
+    }
+
+    if (job?.id) {
+      await this.supabase.adminRest(
+        `ul_admin_notification_jobs?id=eq.${encodeURIComponent(job.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          }),
+        },
+      );
+    }
+
+    await this.audit(
+      ctx,
+      'notification.broadcast',
+      'notification_audience',
+      audience,
+      {
+        title: body.title,
+        audience,
+        recipients: userIds.length,
+      },
+    );
+
+    return {
+      ok: true,
+      audience,
+      recipients: userIds.length,
+      jobId: job?.id || null,
+    };
+  }
+
+  async auditLog(accessToken: string) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner', 'admin']);
+
+    return await this.supabase.adminRest<any[]>(
+      'ul_admin_actions?select=id,admin_user_id,action,target_type,target_id,details,created_at&order=created_at.desc&limit=250',
+      { method: 'GET' },
+    );
+  }
+
+  async systemFlags(accessToken: string) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner', 'admin']);
+
+    return await this.supabase.adminRest<any[]>(
+      'ul_system_flags?select=*&order=updated_at.desc',
+      { method: 'GET' },
+    );
+  }
+
+  async updateSystemFlag(
+    accessToken: string,
+    key: string,
+    value: unknown,
+  ) {
+    const ctx = await this.context(accessToken);
+    this.requireRole(ctx, ['owner']);
+
+    const result = await this.supabase.adminRest<any[]>(
+      'ul_system_flags?on_conflict=flag_key',
+      {
+        method: 'POST',
+        headers: {
+          Prefer: 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify({
+          flag_key: key,
+          flag_value: value,
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    );
+
+    await this.audit(
+      ctx,
+      'system_flag.update',
+      'system_flag',
+      key,
+      { value },
+    );
+
+    return result?.[0] || result;
+  }
+
+  async operationalHealth(accessToken: string) {
+    await this.context(accessToken);
+
+    const overview = await this.overview(accessToken);
+
+    const security = await this.supabase.adminRest<any[]>(
+      'ul_security_events?select=id,event_type,severity,created_at&order=created_at.desc&limit=10',
+      { method: 'GET' },
+    ).catch(() => []);
+
+    return {
+      ok: true,
+      backend: 'online',
+      database: 'supabase-postgresql',
+      overview,
+      recentSecurityEvents: security || [],
+      checkedAt: new Date().toISOString(),
+    };
+  }
 }

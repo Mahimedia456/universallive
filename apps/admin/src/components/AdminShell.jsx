@@ -1,11 +1,14 @@
 import {
   Activity,
+  BellRing,
   CircleUserRound,
+  ClipboardList,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
   RadioTower,
-  Settings,
+  ServerCog,
+  WalletCards,
 } from 'lucide-react';
 
 export default function AdminShell({
@@ -18,9 +21,13 @@ export default function AdminShell({
   const nav = [
     ['dashboard', 'Dashboard', LayoutDashboard],
     ['creators', 'Creators', CircleUserRound],
+    ['plans', 'Plans', WalletCards],
     ['broadcasts', 'Broadcasts', RadioTower],
     ['connections', 'Connections', Activity],
+    ['notifications', 'Notifications', BellRing],
     ['support', 'Support', LifeBuoy],
+    ['audit', 'Audit Log', ClipboardList],
+    ['system', 'System', ServerCog],
   ];
 
   return (
@@ -43,10 +50,6 @@ export default function AdminShell({
             <Icon size={18}/> {label}
           </button>
         ))}
-
-        <button className="nav-item">
-          <Settings size={18}/> Settings
-        </button>
 
         <div style={{marginTop:24,padding:12,borderTop:'1px solid #11232b'}}>
           <div style={{fontWeight:700}}>{admin?.displayName || 'Administrator'}</div>
