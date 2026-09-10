@@ -1,50 +1,70 @@
-UNIVERSAL LIVE — SUPABASE ADMIN SEED REPAIR V2
+UNIVERSAL LIVE — API BASE ROUTE PATCH
 
-The previous console message:
-[AUTH] Admin key mode: unknown secure key format
+PURPOSE
+-------
+Existing deployed endpoints work:
+- /api/v1/health
+- /api/v1/foundation
+- /api/v1/billing/plans
+- /api/v1/security/status
 
-means the backend .env did not contain a recognized Supabase admin credential
-in the variables the previous script checked.
+But:
+- /api/v1
 
-This V2:
-- checks multiple common server-key variable names
-- validates key TYPE before making admin requests
-- rejects anon/publishable keys
-- supports:
-  * sb_secret_... Supabase Secret Key
-  * legacy service_role JWT
-- uses official @supabase/supabase-js Auth Admin API
-- never prints the full key
-- seeds FREE / CREATOR / PRO accounts idempotently
+returns 404 because no root controller is registered.
 
-MERGE INTO:
+THIS PATCH
+----------
+Adds:
+backend/src/app.controller.ts
+
+Registers:
+AppController inside backend/src/app.module.ts
+
+Because server.ts already has:
+app.setGlobalPrefix('api/v1');
+
+the controller's @Get() route becomes:
+https://universallive.vercel.app/api/v1
+
+MERGE INTO
+----------
 E:\UniversalLive
 
-RUN:
+RUN
+---
 cd E:\UniversalLive
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\tools\seed-test-accounts-v2.ps1
+.\tools\apply-api-base-route-patch.ps1
 
-IF IT SAYS NO VALID ADMIN KEY:
-Supabase Dashboard
--> Project Settings
--> API Keys
+THEN PUSH
+---------
+cd E:\UniversalLive
+git add .
+git commit -m "Add UniversalLive API base route"
+git push origin main
 
-Copy either:
-Secret key: sb_secret_...
-OR Legacy service_role key
+AFTER VERCEL REDEPLOY
+---------------------
+Open:
+https://universallive.vercel.app/api/v1
 
-Put in:
-E:\UniversalLive\backend\.env
+Expected:
+{
+  "ok": true,
+  "service": "UniversalLive Backend",
+  "name": "Universal Live API",
+  "status": "online",
+  "apiVersion": "v1",
+  ...
+}
 
-Recommended:
-SUPABASE_SECRET_KEY=sb_secret_...
+NOTE
+----
+The site root:
+https://universallive.vercel.app/
 
-Alternative:
-SUPABASE_SERVICE_ROLE_KEY=<legacy service_role JWT>
+may still return 404. That is fine for an API-only backend.
 
-IMPORTANT:
-SUPABASE_PUBLISHABLE_KEY and SUPABASE_ANON_KEY are NOT admin keys.
-The key must belong to the SAME project referenced by SUPABASE_URL.
-
-No SQL is required for this repair.
+The mobile API base URL should be:
+https://universallive.vercel.app/api/v1
