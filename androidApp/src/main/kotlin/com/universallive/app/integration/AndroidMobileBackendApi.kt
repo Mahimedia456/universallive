@@ -350,4 +350,360 @@ class AndroidMobileBackendApi(
         )
         state
     }
+
+
+    private fun connectionFrom(json: JSONObject) = StreamingConnection(
+        id = json.optString("id"),
+        platform = json.optString("platform"),
+        displayName = json.optString("display_name"),
+        status = json.optString("status", "disconnected"),
+        isDefault = json.optBoolean("is_default", false),
+        isEnabled = json.optBoolean("is_enabled", true),
+        lastTestedAt = json.optString("last_tested_at").takeIf { it.isNotBlank() && it != "null" },
+        lastErrorMessage = json.optString("last_error_message").takeIf { it.isNotBlank() && it != "null" },
+    )
+
+    override suspend fun connections(): Result<List<StreamingConnection>> = runCatching {
+        val response = request("streaming/connections", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) add(connectionFrom(array.getJSONObject(i)))
+        }
+    }
+
+    override suspend fun createConnection(
+        platform: String,
+        displayName: String,
+        isDefault: Boolean,
+    ): Result<StreamingConnection> = runCatching {
+        val response = request(
+            "streaming/connections",
+            method = "POST",
+            authenticated = true,
+            body = """{"platform":${jsonString(platform)},"displayName":${jsonString(displayName)},"isDefault":$isDefault}""",
+        )
+        connectionFrom(JSONObject(response))
+    }
+
+    override suspend fun updateConnection(
+        id: String,
+        displayName: String?,
+        isEnabled: Boolean?,
+        isDefault: Boolean?,
+    ): Result<StreamingConnection> = runCatching {
+        val fields = mutableListOf<String>()
+        if (displayName != null) fields += """"displayName":${jsonString(displayName)}"""
+        if (isEnabled != null) fields += """"isEnabled":$isEnabled"""
+        if (isDefault != null) fields += """"isDefault":$isDefault"""
+        val response = request(
+            "streaming/connections/$id",
+            method = "PATCH",
+            authenticated = true,
+            body = "{${fields.joinToString(",")}}",
+        )
+        connectionFrom(JSONObject(response))
+    }
+
+    override suspend fun deleteConnection(id: String): Result<Unit> = runCatching {
+        request("streaming/connections/$id", method = "DELETE", authenticated = true)
+        Unit
+    }
+
+    override suspend fun testConnection(id: String): Result<ConnectionTestResult> = runCatching {
+        val response = request("streaming/connections/$id/test", method = "POST", body = "{}", authenticated = true)
+        val json = JSONObject(response)
+        ConnectionTestResult(
+            ok = json.optBoolean("ok", false),
+            connectionId = json.optString("connectionId", id),
+            status = json.optString("status", "unknown"),
+        )
+    }
+
+    override suspend fun saveRtmpCredential(
+        connectionId: String,
+        serverUrl: String,
+        streamKey: String,
+    ): Result<Unit> = runCatching {
+        request(
+            "streaming/rtmp",
+            method = "POST",
+            authenticated = true,
+            body = """{"connectionId":${jsonString(connectionId)},"serverUrl":${jsonString(serverUrl)},"streamKey":${jsonString(streamKey)}}""",
+        )
+        Unit
+    }
+
+    private fun sceneFrom(json: JSONObject) = CloudScene(
+        id = json.optString("id"),
+        name = json.optString("name"),
+        description = json.optString("description").takeIf { it.isNotBlank() && it != "null" },
+        aspectRatio = json.optString("aspect_ratio", "16:9"),
+        width = json.optInt("width", 1920),
+        height = json.optInt("height", 1080),
+        isDefault = json.optBoolean("is_default", false),
+        thumbnailUrl = json.optString("thumbnail_url").takeIf { it.isNotBlank() && it != "null" },
+        templateKey = json.optString("template_key").takeIf { it.isNotBlank() && it != "null" },
+    )
+
+    override suspend fun scenes(): Result<List<CloudScene>> = runCatching {
+        val response = request("studio/scenes", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) add(sceneFrom(array.getJSONObject(i)))
+        }
+    }
+
+    override suspend fun createScene(
+        name: String,
+        description: String?,
+        isDefault: Boolean,
+    ): Result<CloudScene> = runCatching {
+        val response = request(
+            "studio/scenes",
+            method = "POST",
+            authenticated = true,
+            body = """{"name":${jsonString(name)},"description":${jsonString(description)},"isDefault":$isDefault}""",
+        )
+        sceneFrom(JSONObject(response))
+    }
+
+    override suspend fun updateScene(
+        id: String,
+        name: String?,
+        isDefault: Boolean?,
+    ): Result<CloudScene> = runCatching {
+        val fields = mutableListOf<String>()
+        if (name != null) fields += """"name":${jsonString(name)}"""
+        if (isDefault != null) fields += """"isDefault":$isDefault"""
+        val response = request(
+            "studio/scenes/$id",
+            method = "PATCH",
+            authenticated = true,
+            body = "{${fields.joinToString(",")}}",
+        )
+        sceneFrom(JSONObject(response))
+    }
+
+    override suspend fun duplicateScene(id: String): Result<CloudScene> = runCatching {
+        val response = request("studio/scenes/$id/duplicate", method = "POST", body = "{}", authenticated = true)
+        sceneFrom(JSONObject(response))
+    }
+
+    override suspend fun deleteScene(id: String): Result<Unit> = runCatching {
+        request("studio/scenes/$id", method = "DELETE", authenticated = true)
+        Unit
+    }
+
+    override suspend fun sceneSources(sceneId: String): Result<List<CloudSceneSource>> = runCatching {
+        val response = request("studio/scenes/$sceneId/sources", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) {
+                val json = array.getJSONObject(i)
+                add(
+                    CloudSceneSource(
+                        id = json.optString("id"),
+                        sceneId = json.optString("scene_id"),
+                        sourceType = json.optString("source_type"),
+                        name = json.optString("name"),
+                        zIndex = json.optInt("z_index", 0),
+                        isVisible = json.optBoolean("is_visible", true),
+                        isLocked = json.optBoolean("is_locked", false),
+                        x = json.optDouble("x", 0.0),
+                        y = json.optDouble("y", 0.0),
+                        width = json.optDouble("width", 1.0),
+                        height = json.optDouble("height", 1.0),
+                        rotation = json.optDouble("rotation", 0.0),
+                        opacity = json.optDouble("opacity", 1.0),
+                    )
+                )
+            }
+        }
+    }
+
+
+    private fun broadcastFrom(json: JSONObject) = BroadcastSession(
+        id = json.optString("id"),
+        title = json.optString("title").takeIf { it.isNotBlank() && it != "null" },
+        status = json.optString("status", "created"),
+        startedAt = json.optString("started_at").takeIf { it.isNotBlank() && it != "null" },
+        endedAt = json.optString("ended_at").takeIf { it.isNotBlank() && it != "null" },
+    )
+
+    override suspend fun createBroadcastSession(
+        title: String,
+        connectionIds: List<String>,
+        sceneId: String?,
+    ): Result<BroadcastSession> = runCatching {
+        val destinations = connectionIds.joinToString(",") { id ->
+            """{"connectionId":${jsonString(id)},"platform":"saved"}"""
+        }
+        val response = request(
+            "broadcast/sessions",
+            method = "POST",
+            authenticated = true,
+            body = """
+                {
+                  "title":${jsonString(title)},
+                  "sceneId":${jsonString(sceneId)},
+                  "destinations":[$destinations]
+                }
+            """.trimIndent(),
+        )
+        broadcastFrom(JSONObject(response))
+    }
+
+    override suspend fun startBroadcastSession(id: String): Result<BroadcastSession> = runCatching {
+        val response = request(
+            "broadcast/sessions/$id/start",
+            method = "POST",
+            body = "{}",
+            authenticated = true,
+        )
+        broadcastFrom(JSONObject(response))
+    }
+
+    override suspend fun heartbeatBroadcastSession(id: String): Result<Unit> = runCatching {
+        request(
+            "broadcast/sessions/$id/heartbeat",
+            method = "POST",
+            body = "{}",
+            authenticated = true,
+        )
+        Unit
+    }
+
+    override suspend fun endBroadcastSession(id: String): Result<BroadcastSession> = runCatching {
+        val response = request(
+            "broadcast/sessions/$id/end",
+            method = "POST",
+            body = "{}",
+            authenticated = true,
+        )
+        broadcastFrom(JSONObject(response))
+    }
+
+    override suspend fun sendTelemetry(
+        sessionId: String,
+        bitrateKbps: Int?,
+        fps: Double?,
+        droppedFrames: Int?,
+        networkStatus: String?,
+    ): Result<Unit> = runCatching {
+        val fields = mutableListOf<String>()
+        bitrateKbps?.let { fields += """"bitrateKbps":$it""" }
+        fps?.let { fields += """"fps":$it""" }
+        droppedFrames?.let { fields += """"droppedFrames":$it""" }
+        networkStatus?.let { fields += """"networkStatus":${jsonString(it)}""" }
+
+        request(
+            "telemetry/sessions/$sessionId",
+            method = "POST",
+            body = "{${fields.joinToString(",")}}",
+            authenticated = true,
+        )
+        Unit
+    }
+
+    override suspend fun streamHistory(): Result<List<StreamHistoryItem>> = runCatching {
+        val response = request("history/streams", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) {
+                val json = array.getJSONObject(i)
+                add(
+                    StreamHistoryItem(
+                        id = json.optString("id"),
+                        title = json.optString("title").takeIf { it.isNotBlank() && it != "null" },
+                        status = json.optString("status"),
+                        startedAt = json.optString("started_at").takeIf { it.isNotBlank() && it != "null" },
+                        endedAt = json.optString("ended_at").takeIf { it.isNotBlank() && it != "null" },
+                        durationSeconds = json.optInt("duration_seconds").takeIf { json.has("duration_seconds") && !json.isNull("duration_seconds") },
+                        avgBitrateKbps = json.optInt("avg_bitrate_kbps").takeIf { json.has("avg_bitrate_kbps") && !json.isNull("avg_bitrate_kbps") },
+                        avgFps = json.optDouble("avg_fps").takeIf { json.has("avg_fps") && !json.isNull("avg_fps") },
+                        droppedFrames = json.optInt("dropped_frames", 0),
+                    )
+                )
+            }
+        }
+    }
+
+    override suspend fun notifications(): Result<List<AppNotification>> = runCatching {
+        val response = request("notifications", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) {
+                val json = array.getJSONObject(i)
+                add(
+                    AppNotification(
+                        id = json.optString("id"),
+                        title = json.optString("title"),
+                        body = json.optString("body"),
+                        isRead = json.optBoolean("is_read", false),
+                        createdAt = json.optString("created_at").takeIf { it.isNotBlank() && it != "null" },
+                    )
+                )
+            }
+        }
+    }
+
+    override suspend fun markNotificationRead(id: String): Result<Unit> = runCatching {
+        request(
+            "notifications/$id/read",
+            method = "POST",
+            body = "{}",
+            authenticated = true,
+        )
+        Unit
+    }
+
+    override suspend fun supportTickets(): Result<List<SupportTicket>> = runCatching {
+        val response = request("support/tickets", authenticated = true)
+        val array = org.json.JSONArray(response)
+        buildList {
+            for (i in 0 until array.length()) {
+                val json = array.getJSONObject(i)
+                add(
+                    SupportTicket(
+                        id = json.optString("id"),
+                        category = json.optString("category"),
+                        subject = json.optString("subject"),
+                        description = json.optString("description"),
+                        status = json.optString("status"),
+                        priority = json.optString("priority"),
+                        createdAt = json.optString("created_at").takeIf { it.isNotBlank() && it != "null" },
+                    )
+                )
+            }
+        }
+    }
+
+    override suspend fun createSupportTicket(
+        category: String,
+        subject: String,
+        description: String,
+    ): Result<SupportTicket> = runCatching {
+        val response = request(
+            "support/tickets",
+            method = "POST",
+            authenticated = true,
+            body = """
+                {
+                  "category":${jsonString(category)},
+                  "subject":${jsonString(subject)},
+                  "description":${jsonString(description)}
+                }
+            """.trimIndent(),
+        )
+        val json = JSONObject(response)
+        SupportTicket(
+            id = json.optString("id"),
+            category = json.optString("category"),
+            subject = json.optString("subject"),
+            description = json.optString("description"),
+            status = json.optString("status"),
+            priority = json.optString("priority"),
+            createdAt = json.optString("created_at").takeIf { it.isNotBlank() && it != "null" },
+        )
+    }
 }

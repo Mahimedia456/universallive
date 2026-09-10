@@ -185,13 +185,18 @@ fun ConnectedAccountSecurityScreen(
 
         UlTextField(name, { name = it }, "Full name")
         UlTextField(username, { username = it }, "Username")
-        UlTextField(
-            state.profile?.email?.ifBlank { state.session?.email.orEmpty() }
-                ?: state.session?.email.orEmpty(),
-            {},
-            "Email",
-            enabled = false,
-        )
+        UlCard {
+            Text("EMAIL", color = AppTextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                state.profile?.email?.ifBlank { state.session?.email.orEmpty() }
+                    ?: state.session?.email.orEmpty(),
+                color = AppText,
+                fontSize = 14.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text("Email is managed by your authenticated account.", color = AppTextMuted, fontSize = 11.sp)
+        }
 
         UlPrimaryButton(
             "Save Account",

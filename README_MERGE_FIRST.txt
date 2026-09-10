@@ -1,51 +1,48 @@
-UNIVERSAL LIVE — MOBILE INTEGRATION BATCH 01
-PHASE 1 + PHASE 2
+UNIVERSAL LIVE — ADMIN BATCH 02
+
+THIS ZIP IS SEPARATE FROM THE MOBILE FIX.
+
+REQUIRES:
+Admin Batch 01 already merged.
 
 MERGE INTO:
 E:\UniversalLive
 
-IMPORTANT:
-This is the first batch that replaces mock authentication/profile membership
-with actual calls to the deployed NestJS backend.
+1. RUN SQL:
+backend/sql/0025_admin_management.sql
 
-API:
-https://universallive.vercel.app/api/v1
-
-STEP 1 — MERGE ZIP
-
-STEP 2 — BUILD BACKEND + MOBILE:
+2. BUILD:
 cd E:\UniversalLive
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\tools\mobile-integration-batch01-build.ps1
+.\tools\admin-batch02-apply.ps1
 
-STEP 3 — PUSH BACKEND RECOVERY ENDPOINTS:
+3. PUSH BACKEND + ADMIN SOURCE:
 cd E:\UniversalLive
 git add .
-git commit -m "Mobile integration batch 01 auth profile membership"
+git commit -m "UniversalLive admin batch 02 management"
 git push origin main
 
-Wait for Vercel deployment.
+4. LOCAL ADMIN:
+cd E:\UniversalLive\apps\admin
+npm run dev
 
-STEP 4 — TEST PUBLIC CONTRACT:
-cd E:\UniversalLive
-.\tools\test-mobile-auth-api.ps1
+FEATURES:
+- Creators list
+- Free / Creator / Pro membership change
+- Connections list
+- enable/disable saved connections
+- Broadcasts list
+- stop active broadcast from control plane
+- Support tickets list
+- update support status
+- role enforcement:
+  owner/admin => membership, connections, broadcasts
+  support => support workflow
+- admin action audit table
+- no service-role key exposed to browser
 
-STEP 5 — BUILD FRESH APK AFTER VERCEL DEPLOY:
-cd E:\UniversalLive
-.\gradlew.bat :androidApp:assembleDebug
-
-APK:
-E:\UniversalLive\androidApp\build\outputs\apk\debug\androidApp-debug.apk
-
-TEST:
-- sign in with FREE account -> Profile badge must show FREE
-- sign out
-- sign in with CREATOR account -> Profile badge must show CREATOR
-- sign out
-- sign in with PRO account -> Profile badge must show PRO
-- kill/reopen app -> session should restore
-- Profile name/username should come from backend
-
-SECURITY:
-No SUPABASE_SECRET_KEY is compiled into mobile.
-Mobile only knows the public NestJS API URL.
+NOTE:
+Admin stop updates the backend broadcast session/control-plane state.
+It cannot magically terminate a third-party platform stream if the mobile
+publisher is disconnected from the backend; device-side STOP remains the
+authoritative media stop operation.

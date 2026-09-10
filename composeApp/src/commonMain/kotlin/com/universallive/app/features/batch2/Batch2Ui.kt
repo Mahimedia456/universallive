@@ -21,7 +21,7 @@ import com.universallive.app.components.UniversalLiveBrand
 import com.universallive.app.theme.*
 
 @Composable
-internal fun Batch2Page(
+fun Batch2Page(
     title: String,
     subtitle: String,
     onBack: (() -> Unit)? = null,
@@ -58,7 +58,7 @@ internal fun Batch2Page(
 }
 
 @Composable
-internal fun InfoCard(
+fun InfoCard(
     title: String,
     body: String,
     status: String? = null,

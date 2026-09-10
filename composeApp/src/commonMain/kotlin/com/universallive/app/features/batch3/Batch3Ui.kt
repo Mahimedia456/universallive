@@ -22,7 +22,7 @@ import com.universallive.app.components.UniversalLiveBrand
 import com.universallive.app.theme.*
 
 @Composable
-internal fun StudioPage(
+fun StudioPage(
     title: String,
     subtitle: String,
     onBack: (() -> Unit)? = null,
@@ -100,7 +100,7 @@ internal fun StudioPage(
 }
 
 @Composable
-internal fun PreviewCanvas(
+fun PreviewCanvas(
     label: String = "PREVIEW",
     footer: String = "16:9 • Output preview",
     modifier: Modifier = Modifier,

@@ -1,4 +1,5 @@
-﻿import { AppController } from './app.controller';
+﻿import { AdminConsoleModule } from './admin-console/admin-console.module';
+import { AppController } from './app.controller';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
@@ -55,7 +56,7 @@ import { RealtimeFinalModule } from './realtime-final/realtime-final.module';
 
 @Module({
   controllers: [AppController],
-  imports: [
+  imports: [AdminConsoleModule, 
     RealtimeFinalModule,
     SecurityAuditModule,
     SupportV2Module,
@@ -91,6 +92,7 @@ import { RealtimeFinalModule } from './realtime-final/realtime-final.module';
   ],
 })
 export class AppModule {}
+
 
 
 
