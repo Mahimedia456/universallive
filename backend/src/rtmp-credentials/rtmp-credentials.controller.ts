@@ -25,4 +25,12 @@ export class RtmpCredentialsController {
   ) {
     return this.service.status(bearerToken(auth), connectionId);
   }
+
+  @Get(':connectionId/publish-config')
+  publishConfig(
+    @Headers('authorization') auth: string | undefined,
+    @Param('connectionId') connectionId: string,
+  ) {
+    return this.service.publishConfig(bearerToken(auth), connectionId);
+  }
 }

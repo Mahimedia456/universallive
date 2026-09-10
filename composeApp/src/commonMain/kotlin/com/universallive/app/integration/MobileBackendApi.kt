@@ -49,8 +49,19 @@ data class StreamingConnection(
     val status: String = "disconnected",
     val isDefault: Boolean = false,
     val isEnabled: Boolean = true,
+    val credentialConfigured: Boolean = false,
+    val readyToPublish: Boolean = false,
+    val credentialUpdatedAt: String? = null,
     val lastTestedAt: String? = null,
     val lastErrorMessage: String? = null,
+)
+
+data class PublishConfig(
+    val connectionId: String,
+    val platform: String,
+    val displayName: String,
+    val serverUrl: String,
+    val streamKey: String,
 )
 
 data class ConnectionTestResult(
@@ -175,6 +186,7 @@ interface MobileBackendApi {
         serverUrl: String,
         streamKey: String,
     ): Result<Unit>
+    suspend fun publishConfig(connectionId: String): Result<PublishConfig>
 
     suspend fun scenes(): Result<List<CloudScene>>
     suspend fun createScene(
@@ -244,6 +256,7 @@ class OfflineMobileBackendApi : MobileBackendApi {
     override suspend fun deleteConnection(id: String) = unavailable<Unit>()
     override suspend fun testConnection(id: String) = unavailable<ConnectionTestResult>()
     override suspend fun saveRtmpCredential(connectionId: String, serverUrl: String, streamKey: String) = unavailable<Unit>()
+    override suspend fun publishConfig(connectionId: String) = unavailable<PublishConfig>()
     override suspend fun scenes() = unavailable<List<CloudScene>>()
     override suspend fun createScene(name: String, description: String?, isDefault: Boolean) = unavailable<CloudScene>()
     override suspend fun updateScene(id: String, name: String?, isDefault: Boolean?) = unavailable<CloudScene>()

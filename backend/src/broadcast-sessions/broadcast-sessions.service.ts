@@ -7,6 +7,50 @@ export class BroadcastSessionsService {
 
   async create(token: string, body: any) {
     const user = await this.db.currentUser(token);
+    const destinations: any[] = Array.isArray(body.destinations) ? body.destinations : [];
+
+    if (!destinations.length) {
+      throw new BadRequestException('Choose at least one destination');
+    }
+
+    const entitlement = await this.effectiveEntitlement(user.id);
+    const maxDestinations = Number(
+      entitlement?.max_simultaneous_destinations ??
+      entitlement?.maxSimultaneousDestinations ??
+      1,
+    );
+
+    if (destinations.length > Math.max(1, maxDestinations)) {
+      throw new BadRequestException(
+        `Your plan allows up to ${Math.max(1, maxDestinations)} simultaneous destination(s)`,
+      );
+    }
+
+    const resolved: any[] = [];
+    for (const requested of destinations) {
+      const connectionId = String(requested?.connectionId || '').trim();
+      if (!connectionId) throw new BadRequestException('Destination connectionId is required');
+
+      const connections = await this.db.adminRest<any[]>(
+        `ul_streaming_connections?id=eq.${encodeURIComponent(connectionId)}&user_id=eq.${encodeURIComponent(user.id)}&select=id,platform,status,is_enabled,display_name`,
+        { method: 'GET' },
+      );
+      const connection = connections?.[0];
+      if (!connection) throw new BadRequestException('One or more destinations no longer exist');
+      if (connection.is_enabled === false) {
+        throw new BadRequestException(`${connection.display_name || 'Destination'} is disabled`);
+      }
+
+      const credentials = await this.db.adminRest<any[]>(
+        `ul_stream_credentials?connection_id=eq.${encodeURIComponent(connectionId)}&user_id=eq.${encodeURIComponent(user.id)}&credential_type=eq.rtmp&select=id`,
+        { method: 'GET' },
+      );
+      if (!credentials?.length) {
+        throw new BadRequestException(`${connection.display_name || 'Destination'} needs RTMP setup`);
+      }
+
+      resolved.push(connection);
+    }
 
     const rows = await this.db.adminRest<any[]>(
       'ul_broadcast_sessions',
@@ -20,7 +64,11 @@ export class BroadcastSessionsService {
           stream_config_id: body.streamConfigId || null,
           client_session_id: body.clientSessionId || null,
           status: 'created',
-          metadata: body.metadata || {},
+          metadata: {
+            ...(body.metadata || {}),
+            requested_destination_count: resolved.length,
+            entitlement_max_destinations: Math.max(1, maxDestinations),
+          },
         }),
       },
     );
@@ -28,9 +76,7 @@ export class BroadcastSessionsService {
     const session = rows?.[0];
     if (!session) throw new BadRequestException('Could not create broadcast session');
 
-    const destinations: any[] = Array.isArray(body.destinations) ? body.destinations : [];
-
-    for (const d of destinations) {
+    for (const connection of resolved) {
       await this.db.adminRest(
         'ul_broadcast_destinations',
         {
@@ -38,8 +84,8 @@ export class BroadcastSessionsService {
           body: JSON.stringify({
             session_id: session.id,
             user_id: user.id,
-            connection_id: d.connectionId || null,
-            platform: d.platform || 'custom_rtmp',
+            connection_id: connection.id,
+            platform: connection.platform || 'custom_rtmp',
             status: 'pending',
           }),
         },
@@ -127,5 +173,21 @@ export class BroadcastSessionsService {
 
     if (!rows?.length) throw new NotFoundException('Broadcast session not found');
     return rows[0];
+  }
+
+  private async effectiveEntitlement(userId: string): Promise<Record<string, unknown>> {
+    const rows = await this.db.adminRest<any[]>(
+      `ul_user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=plan_key,status,entitlements_override`,
+      { method: 'GET' },
+    );
+    const entitlement = rows?.[0] || { plan_key: 'free', status: 'active', entitlements_override: {} };
+    const plans = await this.db.adminRest<any[]>(
+      `ul_plans?plan_key=eq.${encodeURIComponent(entitlement.plan_key || 'free')}&select=entitlements`,
+      { method: 'GET' },
+    );
+    return {
+      ...(plans?.[0]?.entitlements || {}),
+      ...(entitlement?.entitlements_override || {}),
+    };
   }
 }

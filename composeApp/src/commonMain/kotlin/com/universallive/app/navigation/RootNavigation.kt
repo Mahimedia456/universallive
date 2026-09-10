@@ -9,7 +9,6 @@ import com.universallive.app.features.batch3.*
 import com.universallive.app.features.batch4.*
 import com.universallive.app.features.batch5.*
 import com.universallive.app.features.batch6.*
-import com.universallive.app.features.golive.GoLiveScreen
 import com.universallive.app.features.integration.*
 import com.universallive.app.integration.MobileIntegrationState
 import com.universallive.app.features.onboarding.*
@@ -79,7 +78,7 @@ fun RootNavigation(
         AppRoute.CustomRtmp -> ConnectedCustomRtmpScreen(integrationState, connections)
 
         AppRoute.ConnectionDetail -> ConnectedConnectionDetailScreen(integrationState, onRouteChanged, connections)
-        AppRoute.EditConnection -> EditConnectionScreen { onRouteChanged(AppRoute.ConnectionDetail) }
+        AppRoute.EditConnection -> ConnectedEditConnectionScreen(integrationState) { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.ConnectionTest -> ConnectionTestScreen { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.DisconnectConfirmation -> DisconnectConfirmationScreen { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.ConnectionTroubleshooting -> ConnectionTroubleshootingScreen { onRouteChanged(AppRoute.ConnectionDetail) }
@@ -135,32 +134,34 @@ fun RootNavigation(
         )
         AppRoute.AudioAdvanced -> AudioAdvancedScreen { onRouteChanged(AppRoute.AudioMixer) }
 
-        AppRoute.StreamDetails -> StreamDetailsV2Screen(
+        AppRoute.StreamDetails -> ConnectedStreamDetailsScreen(
+            state = integrationState,
             sceneState = sceneState,
             onRoute = onRouteChanged,
             onDestination = goMain,
         )
-        AppRoute.DestinationSelection -> DestinationSelectionScreen(
-            profilesState = profilesState,
+        AppRoute.DestinationSelection -> ConnectedDestinationSelectionScreen(
+            state = integrationState,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.StreamDetails) },
         )
-        AppRoute.StreamQuality -> StreamQualityV2Screen(
+        AppRoute.StreamQuality -> ConnectedStreamQualityScreen(
+            state = integrationState,
             streamState = streamState,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.DestinationSelection) },
         )
-        AppRoute.Preflight -> PreflightV2Screen(
+        AppRoute.Preflight -> ConnectedPreflightScreen(
+            state = integrationState,
             streamState = streamState,
-            profilesState = profilesState,
             sceneState = sceneState,
             captureController = captureController,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.StreamQuality) },
         )
-        AppRoute.Countdown -> CountdownScreen(
+        AppRoute.Countdown -> ConnectedCountdownScreen(
+            state = integrationState,
             streamState = streamState,
-            profilesState = profilesState,
             captureController = captureController,
             facecamState = facecamState,
             overlayState = overlayState,
@@ -195,7 +196,8 @@ fun RootNavigation(
             captureController = captureController,
             onBack = { onRouteChanged(AppRoute.LiveBroadcast) },
         )
-        AppRoute.EndStreamConfirmation -> EndStreamConfirmationScreen(
+        AppRoute.EndStreamConfirmation -> ConnectedEndStreamConfirmationScreen(
+            state = integrationState,
             captureController = captureController,
             onContinue = { onRouteChanged(AppRoute.LiveBroadcast) },
             onEnded = { onRouteChanged(AppRoute.StreamProcessing) },
@@ -285,7 +287,8 @@ fun RootNavigation(
         is AppRoute.Main -> when (route.destination) {
             AppDestination.Home -> HomeV2Screen(onRouteChanged, goMain)
             AppDestination.Scenes -> ConnectedStudioHomeScreen(integrationState, sceneState, onRouteChanged, goMain)
-            AppDestination.GoLive -> StreamDetailsV2Screen(
+            AppDestination.GoLive -> ConnectedStreamDetailsScreen(
+                state = integrationState,
                 sceneState = sceneState,
                 onRoute = onRouteChanged,
                 onDestination = goMain,
@@ -293,7 +296,7 @@ fun RootNavigation(
             AppDestination.Activity -> ConnectedActivityScreen(integrationState, goMain)
             AppDestination.Settings -> ConnectedProfileScreen(integrationState, onRouteChanged, goMain)
             AppDestination.Overlays -> OverlaysScreen(overlayState, goMain)
-            AppDestination.Connections -> ConnectionsV2Screen(onRouteChanged, home)
+            AppDestination.Connections -> ConnectedConnectionsScreen(integrationState, onRouteChanged, home)
         }
     }
 }

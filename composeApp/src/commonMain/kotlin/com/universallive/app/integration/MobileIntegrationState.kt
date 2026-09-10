@@ -224,11 +224,62 @@ class MobileIntegrationState(
     var selectedConnection: StreamingConnection? by mutableStateOf(null)
     var selectedScene: CloudScene? by mutableStateOf(null)
 
+    var pendingConnectionPlatform: String by mutableStateOf("custom_rtmp")
+        private set
+    var liveTitle: String by mutableStateOf("Tonight's Live Session")
+    var liveDescription: String by mutableStateOf("")
+    var livePrivacy: String by mutableStateOf("Public")
+    var selectedLiveConnectionId: String? by mutableStateOf(null)
+        private set
+    var preparedPublishConfig: PublishConfig? by mutableStateOf(null)
+        private set
+
+    fun beginConnectionSetup(platform: String) {
+        pendingConnectionPlatform = platform.trim().lowercase().ifBlank { "custom_rtmp" }
+        error = null
+    }
+
+    fun platformLabel(platform: String = pendingConnectionPlatform): String = when (platform.lowercase()) {
+        "youtube" -> "YouTube"
+        "facebook" -> "Facebook Live"
+        "twitch" -> "Twitch"
+        "tiktok" -> "TikTok Live"
+        else -> "Custom RTMP"
+    }
+
+    fun defaultServerUrl(platform: String = pendingConnectionPlatform): String = when (platform.lowercase()) {
+        "youtube" -> "rtmps://a.rtmps.youtube.com/live2"
+        "facebook" -> "rtmps://live-api-s.facebook.com:443/rtmp/"
+        "twitch" -> "rtmp://live.twitch.tv/app"
+        else -> ""
+    }
+
+    fun chooseLiveConnection(id: String) {
+        val item = connections.firstOrNull { it.id == id } ?: return
+        selectedLiveConnectionId = id
+        selectedConnection = item
+        preparedPublishConfig = null
+        error = null
+    }
+
     suspend fun refreshConnections() {
         accountLoading = true
         error = null
         try {
             connections = api.connections().getOrThrow()
+            selectedConnection = selectedConnection?.let { selected ->
+                connections.firstOrNull { it.id == selected.id }
+            }
+
+            val currentLive = selectedLiveConnectionId?.let { id ->
+                connections.firstOrNull { it.id == id && it.readyToPublish && it.isEnabled }
+            }
+            if (currentLive == null) {
+                selectedLiveConnectionId = connections
+                    .firstOrNull { it.isDefault && it.readyToPublish && it.isEnabled }?.id
+                    ?: connections.firstOrNull { it.readyToPublish && it.isEnabled }?.id
+                preparedPublishConfig = null
+            }
         } catch (t: Throwable) {
             error = messageOf(t)
         } finally {
@@ -252,13 +303,24 @@ class MobileIntegrationState(
         }
     }
 
-    suspend fun saveCustomRtmp(name: String, serverUrl: String, streamKey: String): Boolean {
+    suspend fun saveRtmpConnection(
+        platform: String,
+        name: String,
+        serverUrl: String,
+        streamKey: String,
+    ): Boolean {
         accountLoading = true
         error = null
         return try {
-            val connection = api.createConnection("custom_rtmp", name, connections.isEmpty()).getOrThrow()
-            api.saveRtmpCredential(connection.id, serverUrl, streamKey).getOrThrow()
+            val connection = api.createConnection(platform, name, connections.isEmpty()).getOrThrow()
+            try {
+                api.saveRtmpCredential(connection.id, serverUrl, streamKey).getOrThrow()
+            } catch (credentialError: Throwable) {
+                runCatching { api.deleteConnection(connection.id).getOrThrow() }
+                throw credentialError
+            }
             selectedConnection = connection
+            selectedLiveConnectionId = connection.id
             refreshConnections()
             true
         } catch (t: Throwable) {
@@ -266,6 +328,64 @@ class MobileIntegrationState(
             false
         } finally {
             accountLoading = false
+        }
+    }
+
+    suspend fun saveCustomRtmp(name: String, serverUrl: String, streamKey: String): Boolean =
+        saveRtmpConnection("custom_rtmp", name, serverUrl, streamKey)
+
+    suspend fun updateSelectedConnection(
+        displayName: String,
+        isEnabled: Boolean,
+        isDefault: Boolean,
+        serverUrl: String? = null,
+        streamKey: String? = null,
+    ): Boolean {
+        val item = selectedConnection ?: return false
+        accountLoading = true
+        error = null
+        return try {
+            api.updateConnection(
+                id = item.id,
+                displayName = displayName.trim(),
+                isEnabled = isEnabled,
+                isDefault = isDefault,
+            ).getOrThrow()
+
+            if (!serverUrl.isNullOrBlank() || !streamKey.isNullOrBlank()) {
+                if (serverUrl.isNullOrBlank() || streamKey.isNullOrBlank()) {
+                    throw IllegalArgumentException("Enter both server URL and stream key to replace credentials.")
+                }
+                api.saveRtmpCredential(item.id, serverUrl.trim(), streamKey.trim()).getOrThrow()
+            }
+
+            refreshConnections()
+            selectedConnection = connections.firstOrNull { it.id == item.id }
+            true
+        } catch (t: Throwable) {
+            error = messageOf(t)
+            false
+        } finally {
+            accountLoading = false
+        }
+    }
+
+    suspend fun prepareSelectedPublishConfig(): Boolean {
+        val id = selectedLiveConnectionId ?: run {
+            error = "Choose a ready destination first."
+            return false
+        }
+        loading = true
+        error = null
+        return try {
+            preparedPublishConfig = api.publishConfig(id).getOrThrow()
+            true
+        } catch (t: Throwable) {
+            preparedPublishConfig = null
+            error = messageOf(t)
+            false
+        } finally {
+            loading = false
         }
     }
 
@@ -289,6 +409,10 @@ class MobileIntegrationState(
         error = null
         return try {
             api.deleteConnection(item.id).getOrThrow()
+            if (selectedLiveConnectionId == item.id) {
+                selectedLiveConnectionId = null
+                preparedPublishConfig = null
+            }
             selectedConnection = null
             refreshConnections()
             true

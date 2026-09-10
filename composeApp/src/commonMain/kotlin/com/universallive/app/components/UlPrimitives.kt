@@ -33,16 +33,16 @@ fun UlPrimaryButton(
         shape = RoundedCornerShape(UlRadius.control),
         colors = ButtonDefaults.buttonColors(
             containerColor = AppPrimary,
-            contentColor = AppText,
-            disabledContainerColor = AppPrimary.copy(alpha = .42f),
-            disabledContentColor = AppText.copy(alpha = .70f),
+            contentColor = Color.White,
+            disabledContainerColor = AppPrimary.copy(alpha = .34f),
+            disabledContentColor = Color.White.copy(alpha = .62f),
         ),
     ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
                 strokeWidth = 2.dp,
-                color = AppText,
+                color = Color.White,
             )
         } else {
             Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)

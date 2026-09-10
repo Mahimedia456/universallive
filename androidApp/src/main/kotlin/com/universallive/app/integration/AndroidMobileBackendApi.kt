@@ -359,6 +359,9 @@ class AndroidMobileBackendApi(
         status = json.optString("status", "disconnected"),
         isDefault = json.optBoolean("is_default", false),
         isEnabled = json.optBoolean("is_enabled", true),
+        credentialConfigured = json.optBoolean("credential_configured", false),
+        readyToPublish = json.optBoolean("ready_to_publish", false),
+        credentialUpdatedAt = json.optString("credential_updated_at").takeIf { it.isNotBlank() && it != "null" },
         lastTestedAt = json.optString("last_tested_at").takeIf { it.isNotBlank() && it != "null" },
         lastErrorMessage = json.optString("last_error_message").takeIf { it.isNotBlank() && it != "null" },
     )
@@ -431,6 +434,21 @@ class AndroidMobileBackendApi(
             body = """{"connectionId":${jsonString(connectionId)},"serverUrl":${jsonString(serverUrl)},"streamKey":${jsonString(streamKey)}}""",
         )
         Unit
+    }
+
+    override suspend fun publishConfig(connectionId: String): Result<PublishConfig> = runCatching {
+        val response = request(
+            "streaming/rtmp/$connectionId/publish-config",
+            authenticated = true,
+        )
+        val json = JSONObject(response)
+        PublishConfig(
+            connectionId = json.optString("connectionId", connectionId),
+            platform = json.optString("platform"),
+            displayName = json.optString("displayName"),
+            serverUrl = json.optString("serverUrl"),
+            streamKey = json.optString("streamKey"),
+        )
     }
 
     private fun sceneFrom(json: JSONObject) = CloudScene(
@@ -539,7 +557,7 @@ class AndroidMobileBackendApi(
             """{"connectionId":${jsonString(id)},"platform":"saved"}"""
         }
         val response = request(
-            "broadcast/sessions",
+            "streams/sessions",
             method = "POST",
             authenticated = true,
             body = """
@@ -555,7 +573,7 @@ class AndroidMobileBackendApi(
 
     override suspend fun startBroadcastSession(id: String): Result<BroadcastSession> = runCatching {
         val response = request(
-            "broadcast/sessions/$id/start",
+            "streams/sessions/$id/start",
             method = "POST",
             body = "{}",
             authenticated = true,
@@ -565,7 +583,7 @@ class AndroidMobileBackendApi(
 
     override suspend fun heartbeatBroadcastSession(id: String): Result<Unit> = runCatching {
         request(
-            "broadcast/sessions/$id/heartbeat",
+            "streams/sessions/$id/heartbeat",
             method = "POST",
             body = "{}",
             authenticated = true,
@@ -575,7 +593,7 @@ class AndroidMobileBackendApi(
 
     override suspend fun endBroadcastSession(id: String): Result<BroadcastSession> = runCatching {
         val response = request(
-            "broadcast/sessions/$id/end",
+            "streams/sessions/$id/end",
             method = "POST",
             body = "{}",
             authenticated = true,
@@ -597,7 +615,7 @@ class AndroidMobileBackendApi(
         networkStatus?.let { fields += """"networkStatus":${jsonString(it)}""" }
 
         request(
-            "telemetry/sessions/$sessionId",
+            "streams/sessions/$sessionId/telemetry",
             method = "POST",
             body = "{${fields.joinToString(",")}}",
             authenticated = true,
