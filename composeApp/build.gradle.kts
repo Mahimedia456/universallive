@@ -20,8 +20,10 @@ kotlin {
         }
     }
 
+    // Compose Multiplatform 1.12 artifacts used by this project do not publish
+    // an iosX64 variant. Keep the supported physical-device and Apple-Silicon
+    // simulator targets so Android builds do not emit partially-resolved KMP errors.
     val iosTargets = listOf(
-        iosX64(),
         iosArm64(),
         iosSimulatorArm64(),
     )

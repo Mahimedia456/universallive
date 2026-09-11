@@ -15,6 +15,9 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -22,8 +25,12 @@ import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import android.util.DisplayMetrics
+import android.view.Display
 import android.view.Surface
 import android.view.WindowManager
 import com.universallive.app.streaming.capture.CaptureSnapshot
@@ -32,10 +39,19 @@ import com.universallive.app.streaming.capture.PublishStatus
 import com.universallive.app.MainActivity
 import kotlin.concurrent.thread
 import kotlin.math.sqrt
+import java.util.UUID
 
 class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
+    private var captureSurface: Surface? = null
+    private lateinit var displayManager: DisplayManager
+    private var displayListenerRegistered = false
+    private var captureInputWidth = 0
+    private var captureInputHeight = 0
+    private var captureBaseWidth = 1920
+    private var captureBaseHeight = 1080
+    private var captureDensityDpi = DisplayMetrics.DENSITY_DEFAULT
 
     private var videoEncoder: MediaCodec? = null
     private var encoderInputSurface: Surface? = null
@@ -51,6 +67,14 @@ class ScreenCaptureService : Service() {
     @Volatile private var publishedVideoFrames = 0L
     @Volatile private var publishedVideoBytes = 0L
     @Volatile private var networkBitrateBps = 0L
+    @Volatile private var publisherInstanceId = UUID.randomUUID().toString()
+    @Volatile private var encoderMeasuredBitrateKbps = 0
+    @Volatile private var encodedFpsActual = 0.0
+    @Volatile private var sentFpsActual = 0.0
+    private var metricsSampleAtMs = 0L
+    private var metricsEncodedBytes = 0L
+    private var metricsEncodedFrames = 0L
+    private var metricsPublishedFrames = 0L
 
     private var microphoneRecord: AudioRecord? = null
     private var playbackRecord: AudioRecord? = null
@@ -58,6 +82,9 @@ class ScreenCaptureService : Service() {
     private var playbackThread: Thread? = null
     private var pcmMixer: PcmAudioMixer? = null
     private var aacEncoder: AacAudioEncoder? = null
+    private var micNoiseSuppressor: NoiseSuppressor? = null
+    private var micEchoCanceler: AcousticEchoCanceler? = null
+    private var micAutomaticGain: AutomaticGainControl? = null
 
     @Volatile private var audioEncoderName = ""
     @Volatile private var encodedAudioFrames = 0L
@@ -98,6 +125,17 @@ class ScreenCaptureService : Service() {
     @Volatile private var captureMode = "Entire device"
     @Volatile private var captureStartedAtEpochMs = 0L
 
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            val defaultId = displayManager.getDisplay(Display.DEFAULT_DISPLAY)?.displayId ?: Display.DEFAULT_DISPLAY
+            if (displayId != defaultId || virtualDisplay == null || streamCompositor == null) return
+            refreshCaptureForDeviceRotation()
+        }
+    }
+
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             releaseCapture(false)
@@ -115,6 +153,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         createNotificationChannel()
     }
 
@@ -146,14 +185,24 @@ class ScreenCaptureService : Service() {
     }
 
     private fun startCapture(intent: Intent) {
+        publisherInstanceId = UUID.randomUUID().toString()
+        encoderMeasuredBitrateKbps = 0
+        encodedFpsActual = 0.0
+        sentFpsActual = 0.0
+        metricsSampleAtMs = SystemClock.elapsedRealtime()
+        metricsEncodedBytes = 0L
+        metricsEncodedFrames = 0L
+        metricsPublishedFrames = 0L
         microphoneRequested = intent.getBooleanExtra(EXTRA_CAPTURE_MIC, true)
         internalAudioRequested = intent.getBooleanExtra(EXTRA_CAPTURE_INTERNAL_AUDIO, true)
 
         val requestedWidth = intent.getIntExtra(EXTRA_VIDEO_WIDTH, 1920).coerceAtLeast(320)
         val requestedHeight = intent.getIntExtra(EXTRA_VIDEO_HEIGHT, 1080).coerceAtLeast(240)
-        encoderFps = intent.getIntExtra(EXTRA_VIDEO_FPS, 60).coerceIn(15, 60)
+        encoderFps = intent.getIntExtra(EXTRA_VIDEO_FPS, 30).coerceIn(15, 60)
         encoderBitrateKbps = intent.getIntExtra(EXTRA_VIDEO_BITRATE_KBPS, 6800).coerceIn(500, 50000)
         val orientation = intent.getStringExtra(EXTRA_VIDEO_ORIENTATION) ?: "Landscape"
+        captureBaseWidth = requestedWidth
+        captureBaseHeight = requestedHeight
         rtmpServerUrl = intent.getStringExtra(EXTRA_RTMP_SERVER_URL).orEmpty().trim()
         streamKey = intent.getStringExtra(EXTRA_STREAM_KEY).orEmpty().trim()
         publishTarget = intent.getStringExtra(EXTRA_TARGET_NAME).orEmpty().trim()
@@ -196,59 +245,57 @@ class ScreenCaptureService : Service() {
             prepareVideoEncoder()
             val encoderSurface = requireNotNull(encoderInputSurface) { "Encoder input surface was not created" }
             val preparedOverlays = parseOverlayPayload(overlayPayload)
-            val needsCompositor = facecamEnabled || preparedOverlays.isNotEmpty()
 
-            // The normal/default path sends MediaProjection directly into MediaCodec. This is the
-            // most reliable Android capture route and avoids device-specific black frames caused by
-            // an unnecessary SurfaceTexture/OpenGL hop. We only enable the compositor when the
-            // broadcast actually needs facecam or overlay rendering.
-            val captureSurface: Surface = if (needsCompositor) {
-                streamCompositor = StreamCompositor(
-                    encoderSurface = encoderSurface,
-                    width = encoderWidth,
-                    height = encoderHeight,
-                    facecam = FacecamRenderConfig(
-                        enabled = facecamEnabled,
-                        shape = facecamShape,
-                        x = facecamX,
-                        y = facecamY,
-                        size = facecamSize,
-                        mirrored = facecamMirrored,
-                    ),
-                    overlays = preparedOverlays,
-                ).also { it.start(); compositorActive = true }
+            // Always capture through the GL compositor. The encoder remains at the selected output
+            // resolution (normally 1920x1080), while the MediaProjection input follows the phone's
+            // real portrait/landscape rotation. This prevents Android from baking a landscape game
+            // into the middle of a stale portrait virtual display with large black bars.
+            val inputSize = resolveCaptureInputSize()
+            captureInputWidth = inputSize.first
+            captureInputHeight = inputSize.second
+            captureDensityDpi = resources.displayMetrics.densityDpi.coerceAtLeast(DisplayMetrics.DENSITY_LOW)
 
-                if (facecamEnabled) {
-                    facecamCamera = FacecamCameraController(this).also { camera ->
-                        camera.start(
-                            facecamLens,
-                            requireNotNull(streamCompositor).cameraInputSurface(),
-                            onStarted = {
-                                facecamActive = true
-                                publishSnapshot(CaptureStatus.CAPTURING, "Screen + facecam compositor active", currentAudioMessage())
-                            },
-                            onError = { warning ->
-                                facecamActive = false
-                                publishMessage = warning
-                                publishSnapshot(CaptureStatus.CAPTURING, "Screen compositor active; facecam unavailable", currentAudioMessage())
-                            },
-                        )
-                    }
+            streamCompositor = StreamCompositor(
+                encoderSurface = encoderSurface,
+                width = encoderWidth,
+                height = encoderHeight,
+                initialScreenWidth = captureInputWidth,
+                initialScreenHeight = captureInputHeight,
+                facecam = FacecamRenderConfig(
+                    enabled = facecamEnabled,
+                    shape = facecamShape,
+                    x = facecamX,
+                    y = facecamY,
+                    size = facecamSize,
+                    mirrored = facecamMirrored,
+                ),
+                overlays = preparedOverlays,
+            ).also { it.start(); compositorActive = true }
+
+            if (facecamEnabled) {
+                facecamCamera = FacecamCameraController(this).also { camera ->
+                    camera.start(
+                        facecamLens,
+                        requireNotNull(streamCompositor).cameraInputSurface(),
+                        onStarted = {
+                            facecamActive = true
+                            publishSnapshot(CaptureStatus.CAPTURING, "Screen + facecam compositor active", currentAudioMessage())
+                        },
+                        onError = { warning ->
+                            facecamActive = false
+                            publishMessage = warning
+                            publishSnapshot(CaptureStatus.CAPTURING, "Screen compositor active; facecam unavailable", currentAudioMessage())
+                        },
+                    )
                 }
-                requireNotNull(streamCompositor).screenInputSurface()
-            } else {
-                compositorActive = false
-                facecamActive = false
-                encoderSurface
             }
 
-            val densityDpi = resources.displayMetrics.densityDpi.coerceAtLeast(DisplayMetrics.DENSITY_LOW)
-
+            captureSurface = requireNotNull(streamCompositor).screenInputSurface()
             virtualDisplay = mediaProjection?.createVirtualDisplay(
                 "UniversalLiveH264Capture",
-                encoderWidth,
-                encoderHeight,
-                densityDpi,
+                captureInputWidth,
+                captureInputHeight,
+                captureDensityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 captureSurface,
                 null,
@@ -260,6 +307,7 @@ class ScreenCaptureService : Service() {
                 return
             }
 
+            registerDisplayListener()
             captureStartedAtEpochMs = System.currentTimeMillis()
             startAudioCapture()
             publishSnapshot(
@@ -267,7 +315,7 @@ class ScreenCaptureService : Service() {
                 when {
                     facecamEnabled -> "Screen + facecam compositor is feeding H.264"
                     preparedOverlays.isNotEmpty() -> "Screen + overlays compositor is feeding H.264"
-                    else -> "Direct Android screen capture is feeding H.264"
+                    else -> "Rotation-aware screen compositor is feeding H.264"
                 },
                 currentAudioMessage(),
             )
@@ -311,6 +359,10 @@ class ScreenCaptureService : Service() {
             setInteger(MediaFormat.KEY_BIT_RATE, encoderBitrateKbps * 1000)
             setInteger(MediaFormat.KEY_FRAME_RATE, encoderFps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+            // Surface-input screen capture can become visually static for short periods. Ask the
+            // encoder to repeat the previous frame so RTMP continues delivering a true CFR stream
+            // instead of triggering YouTube's "not receiving enough video" warning.
+            setLong("repeat-previous-frame-after", 1_000_000L / encoderFps.coerceAtLeast(1))
             setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
             if (Build.VERSION.SDK_INT >= 23) {
                 setInteger(MediaFormat.KEY_PRIORITY, 0)
@@ -420,6 +472,77 @@ class ScreenCaptureService : Service() {
         if (publishStatus != PublishStatus.ERROR) publishStatus = PublishStatus.DISCONNECTED
     }
 
+    private fun registerDisplayListener() {
+        if (displayListenerRegistered) return
+        displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        displayListenerRegistered = true
+    }
+
+    private fun unregisterDisplayListener() {
+        if (!displayListenerRegistered) return
+        try { displayManager.unregisterDisplayListener(displayListener) } catch (_: Throwable) {}
+        displayListenerRegistered = false
+    }
+
+    private fun resolveCaptureInputSize(): Pair<Int, Int> {
+        val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+        val metrics = DisplayMetrics()
+        try {
+            @Suppress("DEPRECATION")
+            display?.getRealMetrics(metrics)
+        } catch (_: Throwable) {}
+
+        val rawWidth = metrics.widthPixels
+        val rawHeight = metrics.heightPixels
+        if (rawWidth > 0 && rawHeight > 0) {
+            // Preserve the device's real gaming aspect ratio but cap the long edge to the selected
+            // output long edge. The compositor then center-crops to the chosen 16:9/portrait canvas.
+            val maxCaptureEdge = maxOf(captureBaseWidth, captureBaseHeight).coerceAtLeast(720)
+            val rawLong = maxOf(rawWidth, rawHeight)
+            val scale = minOf(1f, maxCaptureEdge.toFloat() / rawLong.toFloat())
+            val scaledWidth = makeEven((rawWidth * scale).toInt().coerceAtLeast(2))
+            val scaledHeight = makeEven((rawHeight * scale).toInt().coerceAtLeast(2))
+            return scaledWidth to scaledHeight
+        }
+
+        val longEdge = maxOf(captureBaseWidth, captureBaseHeight)
+        val shortEdge = minOf(captureBaseWidth, captureBaseHeight)
+        return if (isDeviceLandscape()) longEdge to shortEdge else shortEdge to longEdge
+    }
+
+    private fun isDeviceLandscape(): Boolean {
+        val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+        return when (display?.rotation) {
+            Surface.ROTATION_90, Surface.ROTATION_270 -> true
+            Surface.ROTATION_0, Surface.ROTATION_180 -> false
+            else -> {
+                val bounds = if (Build.VERSION.SDK_INT >= 30) {
+                    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).maximumWindowMetrics.bounds
+                } else null
+                bounds?.let { it.width() > it.height() } ?: (encoderWidth > encoderHeight)
+            }
+        }
+    }
+
+    private fun refreshCaptureForDeviceRotation() {
+        val next = resolveCaptureInputSize()
+        if (next.first == captureInputWidth && next.second == captureInputHeight) return
+        captureInputWidth = makeEven(next.first)
+        captureInputHeight = makeEven(next.second)
+        try {
+            streamCompositor?.updateScreenInputSize(captureInputWidth, captureInputHeight)
+            virtualDisplay?.resize(captureInputWidth, captureInputHeight, captureDensityDpi)
+            requestSyncFrame()
+            publishSnapshot(
+                CaptureStatus.CAPTURING,
+                "Device rotation synced • input ${captureInputWidth}x${captureInputHeight} → output ${encoderWidth}x${encoderHeight}",
+                currentAudioMessage(),
+            )
+        } catch (t: Throwable) {
+            publishMessage = "Rotation sync warning: ${t.message ?: t::class.java.simpleName}"
+        }
+    }
+
     private fun resolveEncoderSize(width: Int, height: Int, orientation: String): Pair<Int, Int> {
         return when (orientation.lowercase()) {
             "portrait" -> minOf(width, height) to maxOf(width, height)
@@ -449,6 +572,7 @@ class ScreenCaptureService : Service() {
         if (microphoneRequested) {
             try {
                 microphoneRecord = buildMicrophoneRecord().also { record ->
+                    configureMicrophoneProcessing(record.audioSessionId)
                     record.startRecording()
                     microphoneActive = record.recordingState == AudioRecord.RECORDSTATE_RECORDING
                 }
@@ -520,6 +644,9 @@ class ScreenCaptureService : Service() {
                 sampleRate = SAMPLE_RATE,
                 microphoneEnabled = microphoneRequested,
                 playbackEnabled = internalAudioRequested,
+                microphoneGain = if (internalAudioRequested) 0.55f else 0.82f,
+                playbackGain = if (microphoneRequested) 0.82f else 0.92f,
+                masterGain = 0.90f,
                 onMixedFrame = { mixed -> aacEncoder?.queuePcmStereo(mixed) },
             ).also { it.start() }
         } catch (t: Throwable) {
@@ -529,6 +656,34 @@ class ScreenCaptureService : Service() {
         }
     }
 
+    private fun configureMicrophoneProcessing(audioSessionId: Int) {
+        try {
+            if (NoiseSuppressor.isAvailable()) {
+                micNoiseSuppressor = NoiseSuppressor.create(audioSessionId)?.also { it.enabled = true }
+            }
+        } catch (_: Throwable) {}
+        try {
+            if (AcousticEchoCanceler.isAvailable()) {
+                micEchoCanceler = AcousticEchoCanceler.create(audioSessionId)?.also { it.enabled = true }
+            }
+        } catch (_: Throwable) {}
+        // Vendor AGC frequently pumps game audio leaking into the microphone. Keep gain deterministic.
+        try {
+            if (AutomaticGainControl.isAvailable()) {
+                micAutomaticGain = AutomaticGainControl.create(audioSessionId)?.also { it.enabled = false }
+            }
+        } catch (_: Throwable) {}
+    }
+
+    private fun releaseMicrophoneProcessing() {
+        try { micNoiseSuppressor?.release() } catch (_: Throwable) {}
+        try { micEchoCanceler?.release() } catch (_: Throwable) {}
+        try { micAutomaticGain?.release() } catch (_: Throwable) {}
+        micNoiseSuppressor = null
+        micEchoCanceler = null
+        micAutomaticGain = null
+    }
+
     private fun buildMicrophoneRecord(): AudioRecord {
         val min = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
@@ -536,7 +691,7 @@ class ScreenCaptureService : Service() {
             AudioFormat.ENCODING_PCM_16BIT,
         ).coerceAtLeast(SAMPLE_RATE / 5)
         return AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.MIC)
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setAudioFormat(
                 AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -683,6 +838,21 @@ class ScreenCaptureService : Service() {
     }
 
     private fun publishSnapshot(status: CaptureStatus, message: String, audioMessage: String) {
+        val nowMs = SystemClock.elapsedRealtime()
+        val elapsedMs = (nowMs - metricsSampleAtMs).coerceAtLeast(0L)
+        if (elapsedMs >= 500L) {
+            val encodedByteDelta = (encodedVideoBytes - metricsEncodedBytes).coerceAtLeast(0L)
+            val encodedFrameDelta = (encodedVideoFrames - metricsEncodedFrames).coerceAtLeast(0L)
+            val publishedFrameDelta = (publishedVideoFrames - metricsPublishedFrames).coerceAtLeast(0L)
+            encoderMeasuredBitrateKbps = ((encodedByteDelta * 8L) / elapsedMs).toInt().coerceAtLeast(0)
+            encodedFpsActual = encodedFrameDelta.toDouble() * 1000.0 / elapsedMs.toDouble()
+            sentFpsActual = publishedFrameDelta.toDouble() * 1000.0 / elapsedMs.toDouble()
+            metricsSampleAtMs = nowMs
+            metricsEncodedBytes = encodedVideoBytes
+            metricsEncodedFrames = encodedVideoFrames
+            metricsPublishedFrames = publishedVideoFrames
+        }
+        val rtmpMetrics = rtmpPublisher?.metricsSnapshot()
         val snapshot = CaptureSnapshot(
             status = status,
             message = message,
@@ -714,6 +884,20 @@ class ScreenCaptureService : Service() {
             publishedVideoFrames = publishedVideoFrames,
             publishedVideoBytes = publishedVideoBytes,
             networkBitrateBps = networkBitrateBps,
+            encoderMeasuredBitrateKbps = encoderMeasuredBitrateKbps,
+            encodedFpsActual = encodedFpsActual,
+            sentFpsActual = sentFpsActual,
+            droppedFrames = null,
+            rtmpQueueDepth = rtmpMetrics?.rtmpQueueDepth,
+            socketWriteLatencyMs = rtmpMetrics?.socketWriteLatencyMs,
+            publisherEnqueueLatencyMs = rtmpMetrics?.publisherEnqueueLatencyMs,
+            lastVideoPacketAgeMs = rtmpMetrics?.lastVideoPacketAgeMs,
+            lastAudioPacketAgeMs = rtmpMetrics?.lastAudioPacketAgeMs,
+            keyframeIntervalMs = rtmpMetrics?.keyframeIntervalMs,
+            videoPtsMonotonic = rtmpMetrics?.videoPtsMonotonic,
+            audioPtsMonotonic = rtmpMetrics?.audioPtsMonotonic,
+            reconnectCount = rtmpMetrics?.reconnectCount ?: 0,
+            publisherInstanceId = publisherInstanceId,
             facecamActive = facecamActive,
             compositorActive = compositorActive,
             activeSceneName = sceneName,
@@ -746,6 +930,7 @@ class ScreenCaptureService : Service() {
         }
         microphoneThread = null
         playbackThread = null
+        releaseMicrophoneProcessing()
         listOf(microphoneRecord, playbackRecord).forEach { record ->
             try { record?.release() } catch (_: Throwable) {}
         }
@@ -771,8 +956,10 @@ class ScreenCaptureService : Service() {
 
     private fun releaseCapture(stopProjection: Boolean) {
         stopAudioCapture()
+        unregisterDisplayListener()
         virtualDisplay?.release()
         virtualDisplay = null
+        captureSurface = null
         stopRtmpPublisher()
         try { facecamCamera?.stop() } catch (_: Throwable) {}
         facecamCamera = null

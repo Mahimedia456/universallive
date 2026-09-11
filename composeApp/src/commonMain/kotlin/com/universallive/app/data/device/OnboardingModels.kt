@@ -19,4 +19,12 @@ data class OnboardingStateDto(
     val screenCaptureAcknowledged: Boolean = false,
     @SerialName("notifications_acknowledged")
     val notificationsAcknowledged: Boolean = false,
+    @SerialName("creator_content_types")
+    val creatorContentTypes: List<String> = emptyList(),
+    @SerialName("preferred_platforms")
+    val preferredPlatforms: List<String> = emptyList(),
+    @SerialName("experience_level")
+    val experienceLevel: String? = null,
+    @SerialName("primary_goal")
+    val primaryGoal: String? = null,
 )

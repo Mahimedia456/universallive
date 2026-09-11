@@ -5,14 +5,16 @@ import kotlin.math.roundToInt
 
 /**
  * 48 kHz PCM16 mixer. Microphone input is mono; playback input is stereo.
- * It emits fixed 20 ms stereo frames (960 samples/channel) suitable for AAC.
+ * It emits AAC-LC sized 1024-sample stereo frames with headroom, a light mic noise gate,
+ * and soft limiting to avoid the clipping/static heard when game audio and microphone overlap.
  */
 class PcmAudioMixer(
     private val sampleRate: Int = 48_000,
     private val microphoneEnabled: Boolean,
     private val playbackEnabled: Boolean,
-    private val microphoneGain: Float = 1.0f,
-    private val playbackGain: Float = 1.0f,
+    private val microphoneGain: Float = 0.70f,
+    private val playbackGain: Float = 0.85f,
+    private val masterGain: Float = 0.90f,
     private val onMixedFrame: (ShortArray) -> Unit,
 ) {
     private val micRing = ShortRingBuffer(sampleRate * 2)
@@ -24,9 +26,9 @@ class PcmAudioMixer(
         if (running) return
         running = true
         worker = thread(start = true, isDaemon = true, name = "UniversalLiveAudioMixer") {
-            val framesPerChunk = sampleRate / 50 // 20 ms
+            val framesPerChunk = 1024 // AAC-LC frame size per channel
             val stereoShorts = framesPerChunk * 2
-            val frameNanos = 20_000_000L
+            val frameNanos = framesPerChunk * 1_000_000_000L / sampleRate
             var nextTick = System.nanoTime()
 
             while (running && !Thread.currentThread().isInterrupted) {
@@ -35,12 +37,23 @@ class PcmAudioMixer(
                 val game = if (playbackEnabled) gameRing.readOrSilence(stereoShorts) else ShortArray(stereoShorts)
                 val mixed = ShortArray(stereoShorts)
 
+                // Gate only very low-level microphone noise; do not gate normal speech.
+                var micEnergy = 0.0
+                if (microphoneEnabled) {
+                    for (sample in mic) {
+                        val n = sample.toDouble() / Short.MAX_VALUE.toDouble()
+                        micEnergy += n * n
+                    }
+                }
+                val micRms = if (mic.isNotEmpty()) kotlin.math.sqrt(micEnergy / mic.size) else 0.0
+                val micGate = if (micRms < 0.0065) 0f else 1f
+
                 for (i in 0 until framesPerChunk) {
-                    val micSample = mic[i].toInt()
-                    val left = (micSample * microphoneGain + game[i * 2] * playbackGain).roundToInt()
-                    val right = (micSample * microphoneGain + game[i * 2 + 1] * playbackGain).roundToInt()
-                    mixed[i * 2] = saturate(left)
-                    mixed[i * 2 + 1] = saturate(right)
+                    val micSample = mic[i].toFloat() * microphoneGain * micGate
+                    val left = (micSample + game[i * 2].toFloat() * playbackGain) * masterGain
+                    val right = (micSample + game[i * 2 + 1].toFloat() * playbackGain) * masterGain
+                    mixed[i * 2] = softLimit(left)
+                    mixed[i * 2 + 1] = softLimit(right)
                 }
                 onMixedFrame(mixed)
 
@@ -76,7 +89,12 @@ class PcmAudioMixer(
         gameRing.clear()
     }
 
-    private fun saturate(value: Int): Short = value.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+    private fun softLimit(value: Float): Short {
+        val normalized = value / Short.MAX_VALUE.toFloat()
+        // Smooth limiter: linear around normal levels and progressively compresses peaks.
+        val limited = normalized / (1f + kotlin.math.abs(normalized) * 0.55f)
+        return (limited.coerceIn(-1f, 1f) * Short.MAX_VALUE).roundToInt().toShort()
+    }
 
     private class ShortRingBuffer(capacity: Int) {
         private val data = ShortArray(capacity.coerceAtLeast(4096))

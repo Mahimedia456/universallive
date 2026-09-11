@@ -29,13 +29,13 @@ fun UlPrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().height(58.dp),
         shape = RoundedCornerShape(UlRadius.control),
         colors = ButtonDefaults.buttonColors(
             containerColor = AppPrimary,
             contentColor = Color.White,
-            disabledContainerColor = AppPrimary.copy(alpha = .34f),
-            disabledContentColor = Color.White,
+            disabledContainerColor = AppSurfaceInteractive,
+            disabledContentColor = AppTextMuted,
         ),
     ) {
         if (loading) {

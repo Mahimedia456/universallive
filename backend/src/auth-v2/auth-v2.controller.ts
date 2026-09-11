@@ -17,10 +17,11 @@ export class AuthV2Controller {
     return {
       success: true,
       data: {
-        provider: 'supabase-auth',
+        provider: 'universallive-db',
         emailPassword: true,
         emailVerification: true,
         passwordRecovery: true,
+        supabaseAuth: false,
       },
     };
   }
@@ -35,7 +36,7 @@ export class AuthV2Controller {
       username?: string;
     },
   ) {
-    return this.auth.signUp(body);
+    return this.auth.register(body);
   }
 
   @Post('login')
@@ -55,7 +56,7 @@ export class AuthV2Controller {
 
   @Post('resend-verification')
   resend(@Body() body: { email: string }) {
-    return this.auth.resendSignupOtp(body.email);
+    return this.auth.resendVerification(body.email);
   }
 
   @Post('forgot-password')
@@ -78,8 +79,11 @@ export class AuthV2Controller {
   }
 
   @Post('logout')
-  logout(@Headers('authorization') authorization?: string) {
-    const token = (authorization || '').replace(/^Bearer\s+/i, '');
-    return this.auth.signOut(token);
+  logout(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { refreshToken?: string },
+  ) {
+    const token = (authorization || '').replace(/^Bearer\s+/i, '').trim();
+    return this.auth.signOut(token, body.refreshToken);
   }
 }

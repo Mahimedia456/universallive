@@ -1,1 +1,11 @@
-import { Module } from '@nestjs/common'; import { SupabaseModule } from '../supabase/supabase.module'; import { SettingsController } from './settings.controller'; @Module({imports:[SupabaseModule],controllers:[SettingsController]}) export class SettingsModule {}
+import { Module } from '@nestjs/common';
+import { BackendSupabase } from '../common/backend-supabase';
+import { SettingsController } from './settings.controller';
+import { SettingsService } from './settings.service';
+
+@Module({
+  controllers: [SettingsController],
+  providers: [SettingsService, BackendSupabase],
+  exports: [SettingsService],
+})
+export class SettingsModule {}

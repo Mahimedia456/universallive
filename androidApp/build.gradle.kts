@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -16,8 +17,8 @@ android {
         applicationId = "com.universallive.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "0.31.0"
+        versionCode = 39
+        versionName = "0.40.0"
         buildConfigField("String", "UNIVERSALLIVE_API_BASE_URL", "\"$universalLiveApiBaseUrl\"")
     }
 
@@ -38,6 +39,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation("com.github.pedroSG94.RootEncoder:library:2.8.1")
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-analytics")
     implementation(compose.runtime)
     implementation(compose.ui)
     debugImplementation(compose.uiTooling)

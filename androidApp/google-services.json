@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322163676607",
+    "project_id": "universallive-d5d90",
+    "storage_bucket": "universallive-d5d90.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322163676607:android:cdb05b171ef7fc3c27bd0a",
+        "android_client_info": {
+          "package_name": "com.universallive.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6AMjXDFuM2S2oLwanJ78WsBFpCWJ9GbY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

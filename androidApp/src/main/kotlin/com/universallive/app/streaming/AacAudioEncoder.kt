@@ -46,7 +46,7 @@ class AacAudioEncoder(
         if (!running || samples.isEmpty()) return
         val c = codec ?: return
         try {
-            val index = c.dequeueInputBuffer(0)
+            val index = c.dequeueInputBuffer(10_000)
             if (index < 0) return
             val input = c.getInputBuffer(index) ?: return
             input.clear()

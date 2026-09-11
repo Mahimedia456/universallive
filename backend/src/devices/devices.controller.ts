@@ -17,9 +17,32 @@ export class DevicesController {
       appVersion?: string | null;
       osVersion?: string | null;
       deviceModel?: string | null;
+      locale?: string | null;
+      timezone?: string | null;
+      metadata?: Record<string, unknown> | null;
     },
   ) {
     return this.devices.registerDevice(readBearerToken(authorization), body);
+  }
+
+  @Get('devices/me')
+  listMine(@Headers('authorization') authorization?: string) {
+    return this.devices.listDevices(readBearerToken(authorization));
+  }
+
+  @Put('devices/permissions')
+  permissions(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      deviceId: string;
+      permissionSnapshot: Record<string, unknown>;
+    },
+  ) {
+    return this.devices.updatePermissionSnapshot(
+      readBearerToken(authorization),
+      body,
+    );
   }
 
   @Get('onboarding/me')

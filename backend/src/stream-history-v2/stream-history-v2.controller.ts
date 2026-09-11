@@ -10,23 +10,28 @@ export class StreamHistoryV2Controller {
   list(
     @Headers('authorization') auth: string | undefined,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    return this.service.list(bearerToken(auth), Number(limit || 50));
+    return this.service.list(bearerToken(auth), {
+      limit: Number(limit || 25), offset: Number(offset || 0), status, from, to,
+    });
   }
 
   @Get(':sessionId')
-  detail(
-    @Headers('authorization') auth: string | undefined,
-    @Param('sessionId') sessionId: string,
-  ) {
+  detail(@Headers('authorization') auth: string | undefined, @Param('sessionId') sessionId: string) {
     return this.service.detail(bearerToken(auth), sessionId);
   }
 
+  @Get(':sessionId/analytics')
+  analytics(@Headers('authorization') auth: string | undefined, @Param('sessionId') sessionId: string) {
+    return this.service.analytics(bearerToken(auth), sessionId);
+  }
+
   @Post(':sessionId/finalize')
-  finalize(
-    @Headers('authorization') auth: string | undefined,
-    @Param('sessionId') sessionId: string,
-  ) {
+  finalize(@Headers('authorization') auth: string | undefined, @Param('sessionId') sessionId: string) {
     return this.service.finalize(bearerToken(auth), sessionId);
   }
 }

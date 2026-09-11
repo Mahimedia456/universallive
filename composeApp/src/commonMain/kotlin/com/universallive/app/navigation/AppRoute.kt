@@ -18,10 +18,24 @@ sealed interface AppRoute {
     data object PasswordResetSuccess : AppRoute
     data object AccountCreatedSuccess : AppRoute
 
+    // Phase 07 — Creator Onboarding
     data object CreatorSetup : AppRoute
+    data object CreatorContentType : AppRoute
+    data object CreatorPlatforms : AppRoute
+    data object CreatorExperience : AppRoute
+    data object CreatorGoal : AppRoute
+    data object CreatorSetupComplete : AppRoute
+
+    // Phase 08 - Permissions Setup
     data object PermissionHub : AppRoute
-    data object MicCameraPermission : AppRoute
+    data object NotificationPermission : AppRoute
+    data object MicrophonePermission : AppRoute
+    data object CameraPermission : AppRoute
     data object ScreenCaptureEducation : AppRoute
+    data object PermissionsComplete : AppRoute
+
+    // Legacy Phase 08 aliases kept temporarily so older deep-links/source references compile.
+    data object MicCameraPermission : AppRoute
     data object StudioReady : AppRoute
 
     // Phase 04 — Home + Notifications
@@ -73,26 +87,42 @@ sealed interface AppRoute {
     data object AudioMixer : AppRoute
     data object AudioAdvanced : AppRoute
 
-    // Phase 11 — Go Live Configuration
+    // Locked roadmap Phase 23 — Stream Quality Center
+    data object QualityCenter : AppRoute
+
+    // Locked roadmap Phase 13 — Go Live Setup
     data object StreamDetails : AppRoute
     data object DestinationSelection : AppRoute
+    data object StreamInfo : AppRoute
     data object StreamQuality : AppRoute
+    data object AudioCameraSetup : AppRoute
+    data object SetupReview : AppRoute
+
+    // Locked roadmap Phase 14 — Stream Preflight
     data object Preflight : AppRoute
+    data object PreflightNetwork : AppRoute
+    data object PreflightDevices : AppRoute
+    data object PreflightDestinations : AppRoute
+    data object PreflightSuccess : AppRoute
     data object Countdown : AppRoute
 
-    // Phase 12 — Active Broadcast
+    // Locked roadmap Phase 15 — Active Live
     data object LiveBroadcast : AppRoute
     data object LiveControls : AppRoute
     data object LiveSceneSwitcher : AppRoute
     data object LiveChat : AppRoute
     data object LiveStats : AppRoute
+    data object LiveHealth : AppRoute
+    data object LiveDestinations : AppRoute
     data object EndStreamConfirmation : AppRoute
 
-
-    // Phase 13 — Broadcast Resilience
+    // Locked roadmap Phase 16 — Disconnect / Recovery
+    data object EndingStream : AppRoute
     data object LiveRecovery : AppRoute
     data object NetworkDegraded : AppRoute
     data object Reconnecting : AppRoute
+    data object StreamRecovered : AppRoute
+    data object RecoveryFailed : AppRoute
     data object DestinationFailure : AppRoute
     data object StreamInterrupted : AppRoute
 
@@ -110,20 +140,33 @@ sealed interface AppRoute {
     data object ManageSubscription : AppRoute
 
 
-    // Phase 16 — Profile + Settings
+    // Locked roadmap Phase 27-33 — Profile, Membership, Billing & Settings
+    data object EditProfile : AppRoute
+    data object Billing : AppRoute
+    data object PaymentMethods : AppRoute
+    data object SettingsHub : AppRoute
+    data object StreamingSettings : AppRoute
+    data object AccountSettings : AppRoute
+
+    // Legacy aliases retained so existing deep-links/source references keep compiling.
     data object AccountSecurity : AppRoute
     data object StreamingDefaults : AppRoute
     data object VideoAudioDefaults : AppRoute
     data object AppearanceNotifications : AppRoute
 
-    // Phase 17 — Support + Account Lifecycle
+    // Locked roadmap Phase 34-36 — Support, Diagnostics, Legal / About
     data object HelpCenter : AppRoute
     data object Troubleshooting : AppRoute
     data object ContactSupport : AppRoute
+    data object Diagnostics : AppRoute
     data object LegalPrivacy : AppRoute
     data object DeleteAccount : AppRoute
 
-    // Phase 18 — Production States + Final UI QA
+    // Locked roadmap Phase 37-39 — Global states, components and functional QA
+    data object GlobalComponents : AppRoute
+    data object FunctionalQa : AppRoute
+
+    // Legacy production-state routes retained for deep links and runtime failures.
     data object Offline : AppRoute
     data object SessionExpired : AppRoute
     data object PermissionBlocked : AppRoute

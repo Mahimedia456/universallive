@@ -2,7 +2,10 @@ package com.universallive.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import com.universallive.app.features.activity.ActivityScreen
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import com.universallive.app.features.account.*
 import com.universallive.app.features.auth.*
 import com.universallive.app.features.batch2.*
 import com.universallive.app.features.batch3.*
@@ -10,11 +13,16 @@ import com.universallive.app.features.batch4.*
 import com.universallive.app.features.batch5.*
 import com.universallive.app.features.batch6.*
 import com.universallive.app.features.integration.*
+import com.universallive.app.features.home.ConnectedHomeScreen
+import com.universallive.app.features.home.Phase09StreamReadinessScreen
+import com.universallive.app.features.live.*
+import com.universallive.app.features.connections.*
 import com.universallive.app.integration.MobileIntegrationState
+import com.universallive.app.permissions.PermissionSetupController
 import com.universallive.app.features.onboarding.*
-import com.universallive.app.features.overlays.OverlaysScreen
-import com.universallive.app.features.scenes.ScenesScreen
-import com.universallive.app.features.settings.SettingsScreen
+import com.universallive.app.features.studio.*
+import com.universallive.app.features.system.*
+import com.universallive.app.features.welcome.WelcomeScreen
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.connections.RtmpProfilesState
 import com.universallive.app.streaming.facecam.FacecamState
@@ -32,6 +40,7 @@ fun RootNavigation(
     overlayState: OverlayState,
     sceneState: SceneState,
     integrationState: MobileIntegrationState,
+    permissionSetupController: PermissionSetupController,
     onRouteChanged: (AppRoute) -> Unit,
 ) {
     val goMain: (AppDestination) -> Unit = { destination ->
@@ -43,13 +52,27 @@ fun RootNavigation(
     when (route) {
         AppRoute.Splash -> {
             LaunchedEffect(Unit) {
-                val restored = integrationState.restore()
+                // Restore the account in parallel while keeping the approved branded splash
+                // visible long enough to feel deliberate instead of flashing for one frame.
+                val restored = coroutineScope {
+                    val restoreTask = async { integrationState.restore() }
+                    delay(1600)
+                    restoreTask.await()
+                }
+
                 onRouteChanged(
-                    if (restored) AppRoute.Main(AppDestination.Home)
-                    else AppRoute.Welcome
+                    when {
+                        integrationState.systemState?.maintenanceEnabled == true -> AppRoute.ServiceError
+                        restored && integrationState.hasActuallyLiveBroadcast -> AppRoute.LiveBroadcast
+                        restored && integrationState.profile?.onboardingCompleted == false &&
+                            integrationState.onboarding?.creatorSetupCompleted == true -> AppRoute.PermissionHub
+                        restored && integrationState.profile?.onboardingCompleted == false -> AppRoute.CreatorSetup
+                        restored -> AppRoute.Main(AppDestination.Home)
+                        else -> AppRoute.Welcome
+                    }
                 )
             }
-            SplashScreen { }
+            SplashScreen()
         }
         AppRoute.Welcome -> WelcomeScreen(onRouteChanged)
         AppRoute.SignIn -> ConnectedSignInScreen(integrationState, onRouteChanged)
@@ -60,30 +83,58 @@ fun RootNavigation(
         AppRoute.CreateNewPassword -> ConnectedCreateNewPasswordScreen(integrationState, onRouteChanged)
         AppRoute.PasswordResetSuccess -> PasswordResetSuccessScreen(onRouteChanged)
         AppRoute.AccountCreatedSuccess -> AccountCreatedSuccessScreen(onRouteChanged)
-        AppRoute.CreatorSetup -> CreatorSetupScreen(onRouteChanged)
-        AppRoute.PermissionHub -> PermissionHubScreen(onRouteChanged)
+        AppRoute.CreatorSetup -> CreatorSetupScreen(integrationState, onRouteChanged)
+        AppRoute.CreatorContentType -> CreatorContentTypeScreen(integrationState, onRouteChanged)
+        AppRoute.CreatorPlatforms -> CreatorPlatformsScreen(integrationState, onRouteChanged)
+        AppRoute.CreatorExperience -> CreatorExperienceScreen(integrationState, onRouteChanged)
+        AppRoute.CreatorGoal -> CreatorGoalScreen(integrationState, onRouteChanged)
+        AppRoute.CreatorSetupComplete -> CreatorSetupCompleteScreen(integrationState, onRouteChanged)
+        AppRoute.PermissionHub -> PermissionHubScreen(integrationState, permissionSetupController, onRouteChanged)
+        AppRoute.NotificationPermission -> NotificationPermissionScreen(integrationState, permissionSetupController, onRouteChanged)
+        AppRoute.MicrophonePermission -> MicrophonePermissionScreen(integrationState, permissionSetupController, onRouteChanged)
+        AppRoute.CameraPermission -> CameraPermissionScreen(integrationState, permissionSetupController, onRouteChanged)
+        AppRoute.ScreenCaptureEducation -> ScreenCaptureEducationScreen(integrationState, permissionSetupController, onRouteChanged)
+        AppRoute.PermissionsComplete -> PermissionsCompleteScreen(integrationState, permissionSetupController, onRouteChanged)
         AppRoute.MicCameraPermission -> MicCameraPermissionScreen(onRouteChanged)
-        AppRoute.ScreenCaptureEducation -> ScreenCaptureEducationScreen(onRouteChanged)
         AppRoute.StudioReady -> StudioReadyScreen(onRouteChanged)
 
-        AppRoute.StreamReadiness -> StreamReadinessScreen(home)
+        AppRoute.StreamReadiness -> Phase09StreamReadinessScreen(
+            state = integrationState,
+            streamState = streamState,
+            permissions = permissionSetupController,
+            sceneState = sceneState,
+            onBack = home,
+            onGoLive = { goMain(AppDestination.GoLive) },
+        )
         AppRoute.QuickGoLive -> QuickGoLiveScreen(home)
-        AppRoute.Notifications -> ConnectedNotificationsScreen(integrationState, home)
-        AppRoute.NotificationDetail -> NotificationDetailScreen { onRouteChanged(AppRoute.Notifications) }
+        AppRoute.Notifications -> Phase26NotificationsScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+            onDestination = goMain,
+        )
+        AppRoute.NotificationDetail -> Phase26NotificationDetailScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+        )
 
-        AppRoute.Connections -> ConnectedConnectionsScreen(integrationState, onRouteChanged, home)
-        AppRoute.AddConnection -> ConnectedAddConnectionScreen(integrationState, onRouteChanged, connections)
+        AppRoute.Connections -> Phase10ConnectionsScreen(integrationState, onRouteChanged, home)
+        AppRoute.AddConnection -> Phase11AddDestinationScreen(integrationState, onRouteChanged, connections)
         AppRoute.PlatformAuthorization -> PlatformAuthorizationScreen(onRouteChanged) { onRouteChanged(AppRoute.AddConnection) }
         AppRoute.ChannelPicker -> ChannelPickerScreen { onRouteChanged(AppRoute.PlatformAuthorization) }
-        AppRoute.CustomRtmp -> ConnectedCustomRtmpScreen(integrationState, connections)
+        AppRoute.CustomRtmp -> Phase11PlatformConnectScreen(
+            state = integrationState,
+            onSaved = { onRouteChanged(AppRoute.ConnectionDetail) },
+            onBack = { onRouteChanged(AppRoute.AddConnection) },
+        )
 
-        AppRoute.ConnectionDetail -> ConnectedConnectionDetailScreen(integrationState, onRouteChanged, connections)
-        AppRoute.EditConnection -> ConnectedEditConnectionScreen(integrationState) { onRouteChanged(AppRoute.ConnectionDetail) }
+        AppRoute.ConnectionDetail -> Phase12ConnectionDetailScreen(integrationState, onRouteChanged, connections)
+        AppRoute.EditConnection -> Phase12EditConnectionScreen(integrationState) { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.ConnectionTest -> ConnectionTestScreen { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.DisconnectConfirmation -> DisconnectConfirmationScreen { onRouteChanged(AppRoute.ConnectionDetail) }
         AppRoute.ConnectionTroubleshooting -> ConnectionTroubleshootingScreen { onRouteChanged(AppRoute.ConnectionDetail) }
 
-        AppRoute.SceneLibrary -> ConnectedSceneLibraryScreen(
+        AppRoute.SceneLibrary -> Phase18ScenesScreen(
+            sceneState = sceneState,
             state = integrationState,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
@@ -99,10 +150,11 @@ fun RootNavigation(
             onBack = { onRouteChanged(AppRoute.SceneLibrary) },
         )
 
-        AppRoute.SceneEditor -> SceneEditorV2Screen(
+        AppRoute.SceneEditor -> Phase19SceneEditorScreen(
             sceneState = sceneState,
-            onRoute = onRouteChanged,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
+            overlayState = overlayState,
+            state = integrationState,
+            onBack = { onRouteChanged(AppRoute.SceneLibrary) },
         )
         AppRoute.AddSource -> AddSourceScreen(
             onRoute = onRouteChanged,
@@ -115,7 +167,11 @@ fun RootNavigation(
         AppRoute.TransformInspector -> TransformInspectorScreen { onRouteChanged(AppRoute.SceneEditor) }
         AppRoute.SourceProperties -> SourcePropertiesScreen { onRouteChanged(AppRoute.SceneEditor) }
 
-        AppRoute.FacecamEditor -> FacecamEditorScreen { onRouteChanged(AppRoute.AddSource) }
+        AppRoute.FacecamEditor -> Phase22FacecamScreen(
+            facecamState = facecamState,
+            state = integrationState,
+            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
+        )
         AppRoute.ImageLogoEditor -> ImageLogoEditorScreen { onRouteChanged(AppRoute.AddSource) }
         AppRoute.TextEditor -> TextEditorScreen { onRouteChanged(AppRoute.AddSource) }
         AppRoute.BrowserSourceEditor -> BrowserSourceEditorScreen { onRouteChanged(AppRoute.AddSource) }
@@ -124,42 +180,93 @@ fun RootNavigation(
         AppRoute.ChatOverlayEditor -> ChatOverlayEditorScreen { onRouteChanged(AppRoute.AddSource) }
         AppRoute.AlertEditor -> AlertEditorScreen { onRouteChanged(AppRoute.AddSource) }
         AppRoute.GoalOverlayEditor -> GoalOverlayEditorScreen { onRouteChanged(AppRoute.AddSource) }
-        AppRoute.AudioMixer -> AudioMixerV2Screen(
-            microphoneEnabled = streamState.config.microphoneEnabled,
-            deviceAudioEnabled = streamState.config.internalAudioEnabled,
-            onMicrophoneChanged = streamState::setMicrophoneEnabled,
-            onDeviceAudioChanged = streamState::setInternalAudioEnabled,
-            onAdvanced = { onRouteChanged(AppRoute.AudioAdvanced) },
+        AppRoute.AudioMixer -> Phase21AudioMixerScreen(
+            streamState = streamState,
+            state = integrationState,
             onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
         )
         AppRoute.AudioAdvanced -> AudioAdvancedScreen { onRouteChanged(AppRoute.AudioMixer) }
-
-        AppRoute.StreamDetails -> ConnectedStreamDetailsScreen(
+        AppRoute.QualityCenter -> Phase23StreamQualityScreen(
+            streamState = streamState,
+            captureController = captureController,
             state = integrationState,
+            onGoLive = { onRouteChanged(AppRoute.StreamDetails) },
+            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
+        )
+
+        AppRoute.StreamDetails -> Phase13GoLiveOverviewScreen(
+            state = integrationState,
+            streamState = streamState,
             sceneState = sceneState,
+            facecamState = facecamState,
             onRoute = onRouteChanged,
             onDestination = goMain,
         )
-        AppRoute.DestinationSelection -> ConnectedDestinationSelectionScreen(
+        AppRoute.DestinationSelection -> Phase13DestinationSelectionScreen(
             state = integrationState,
             onRoute = onRouteChanged,
             onBack = { onRouteChanged(AppRoute.StreamDetails) },
         )
-        AppRoute.StreamQuality -> ConnectedStreamQualityScreen(
+        AppRoute.StreamInfo -> Phase13StreamInfoScreen(
             state = integrationState,
-            streamState = streamState,
-            onRoute = onRouteChanged,
+            onNext = { onRouteChanged(AppRoute.StreamQuality) },
             onBack = { onRouteChanged(AppRoute.DestinationSelection) },
         )
-        AppRoute.Preflight -> ConnectedPreflightScreen(
+        AppRoute.StreamQuality -> Phase13StreamSettingsScreen(
             state = integrationState,
             streamState = streamState,
-            sceneState = sceneState,
-            captureController = captureController,
+            onNext = { onRouteChanged(AppRoute.AudioCameraSetup) },
+            onBack = { onRouteChanged(AppRoute.StreamInfo) },
+        )
+        AppRoute.AudioCameraSetup -> Phase13AudioCameraScreen(
+            streamState = streamState,
+            facecamState = facecamState,
+            permissions = permissionSetupController,
             onRoute = onRouteChanged,
+            onNext = { onRouteChanged(AppRoute.SetupReview) },
             onBack = { onRouteChanged(AppRoute.StreamQuality) },
         )
-        AppRoute.Countdown -> ConnectedCountdownScreen(
+        AppRoute.SetupReview -> Phase13SetupReviewScreen(
+            state = integrationState,
+            streamState = streamState,
+            facecamState = facecamState,
+            permissions = permissionSetupController,
+            onStartPreflight = { onRouteChanged(AppRoute.Preflight) },
+            onBack = { onRouteChanged(AppRoute.AudioCameraSetup) },
+        )
+
+        AppRoute.Preflight -> Phase14PreflightStartScreen(
+            onNext = { onRouteChanged(AppRoute.PreflightNetwork) },
+            onBack = { onRouteChanged(AppRoute.SetupReview) },
+        )
+        AppRoute.PreflightNetwork -> Phase14NetworkCheckScreen(
+            state = integrationState,
+            streamState = streamState,
+            onNext = { onRouteChanged(AppRoute.PreflightDevices) },
+            onBack = { onRouteChanged(AppRoute.Preflight) },
+        )
+        AppRoute.PreflightDevices -> Phase14DeviceCheckScreen(
+            state = integrationState,
+            streamState = streamState,
+            facecamState = facecamState,
+            permissions = permissionSetupController,
+            onRoute = onRouteChanged,
+            onNext = { onRouteChanged(AppRoute.PreflightDestinations) },
+            onBack = { onRouteChanged(AppRoute.PreflightNetwork) },
+        )
+        AppRoute.PreflightDestinations -> Phase14DestinationCheckScreen(
+            state = integrationState,
+            onNext = { onRouteChanged(AppRoute.PreflightSuccess) },
+            onBack = { onRouteChanged(AppRoute.PreflightDevices) },
+        )
+        AppRoute.PreflightSuccess -> Phase14PreflightSuccessScreen(
+            state = integrationState,
+            streamState = streamState,
+            permissions = permissionSetupController,
+            onGoLive = { onRouteChanged(AppRoute.Countdown) },
+            onBack = { onRouteChanged(AppRoute.PreflightDestinations) },
+        )
+        AppRoute.Countdown -> Phase14GoingLiveScreen(
             state = integrationState,
             streamState = streamState,
             captureController = captureController,
@@ -167,19 +274,19 @@ fun RootNavigation(
             overlayState = overlayState,
             sceneState = sceneState,
             onLive = { onRouteChanged(AppRoute.LiveBroadcast) },
-            onCancel = { onRouteChanged(AppRoute.Preflight) },
+            onBack = { onRouteChanged(AppRoute.PreflightSuccess) },
         )
 
-        AppRoute.LiveBroadcast -> LiveBroadcastV2Screen(
+        AppRoute.LiveBroadcast -> Phase15ActiveLiveScreen(
+            state = integrationState,
             streamState = streamState,
             captureController = captureController,
             facecamState = facecamState,
             sceneState = sceneState,
-            integrationState = integrationState,
             onRoute = onRouteChanged,
             onDestination = goMain,
         )
-        AppRoute.LiveControls -> LiveControlsScreen(
+        AppRoute.LiveControls -> Phase15LiveControlsScreen(
             streamState = streamState,
             captureController = captureController,
             facecamState = facecamState,
@@ -191,31 +298,78 @@ fun RootNavigation(
             captureController = captureController,
             onBack = { onRouteChanged(AppRoute.LiveBroadcast) },
         )
-        AppRoute.LiveChat -> LiveChatScreen { onRouteChanged(AppRoute.LiveBroadcast) }
-        AppRoute.LiveStats -> LiveStatsV2Screen(
+        AppRoute.LiveChat -> Phase15LiveChatScreen { onRouteChanged(AppRoute.LiveBroadcast) }
+        AppRoute.LiveStats -> Phase15LiveStatsScreen(
             streamState = streamState,
             captureController = captureController,
             onBack = { onRouteChanged(AppRoute.LiveBroadcast) },
         )
-        AppRoute.EndStreamConfirmation -> ConnectedEndStreamConfirmationScreen(
-            state = integrationState,
+        AppRoute.LiveHealth -> Phase15StreamHealthScreen(
+            streamState = streamState,
             captureController = captureController,
-            onContinue = { onRouteChanged(AppRoute.LiveBroadcast) },
-            onEnded = { onRouteChanged(AppRoute.StreamProcessing) },
-        )
-
-        AppRoute.LiveRecovery -> ResilienceHubScreen(
-            captureController = captureController,
-            onNetwork = { onRouteChanged(AppRoute.NetworkDegraded) },
-            onReconnect = { onRouteChanged(AppRoute.Reconnecting) },
-            onDestinationFailure = { onRouteChanged(AppRoute.DestinationFailure) },
-            onInterrupted = { onRouteChanged(AppRoute.StreamInterrupted) },
             onBack = { onRouteChanged(AppRoute.LiveBroadcast) },
         )
-        AppRoute.NetworkDegraded -> NetworkDegradedScreen(captureController) { onRouteChanged(AppRoute.LiveBroadcast) }
-        AppRoute.Reconnecting -> ReconnectingScreen(captureController) { onRouteChanged(AppRoute.LiveBroadcast) }
-        AppRoute.DestinationFailure -> DestinationFailureScreen { onRouteChanged(AppRoute.LiveBroadcast) }
-        AppRoute.StreamInterrupted -> StreamInterruptedScreen(captureController) { onRouteChanged(AppRoute.LiveBroadcast) }
+        AppRoute.LiveDestinations -> Phase15LiveDestinationsScreen(
+            state = integrationState,
+            captureController = captureController,
+            onManage = { onRouteChanged(AppRoute.Connections) },
+            onBack = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
+        AppRoute.EndStreamConfirmation -> Phase16EndStreamConfirmScreen(
+            captureController = captureController,
+            onEnd = { onRouteChanged(AppRoute.EndingStream) },
+            onCancel = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
+        AppRoute.EndingStream -> Phase16EndingScreen(
+            state = integrationState,
+            captureController = captureController,
+            onEnded = { onRouteChanged(AppRoute.StreamProcessing) },
+        )
+        AppRoute.LiveRecovery -> Phase16RecoveryHubScreen(
+            captureController = captureController,
+            onReconnect = { onRouteChanged(AppRoute.Reconnecting) },
+            onEnd = { onRouteChanged(AppRoute.EndStreamConfirmation) },
+            onReturn = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
+        AppRoute.NetworkDegraded -> Phase16RecoveryHubScreen(
+            captureController = captureController,
+            onReconnect = { onRouteChanged(AppRoute.Reconnecting) },
+            onEnd = { onRouteChanged(AppRoute.EndStreamConfirmation) },
+            onReturn = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
+        AppRoute.Reconnecting -> Phase16ReconnectingScreen(
+            state = integrationState,
+            streamState = streamState,
+            captureController = captureController,
+            facecamState = facecamState,
+            overlayState = overlayState,
+            sceneState = sceneState,
+            onRecovered = { onRouteChanged(AppRoute.StreamRecovered) },
+            onFailed = { onRouteChanged(AppRoute.RecoveryFailed) },
+            onCancel = { onRouteChanged(AppRoute.LiveRecovery) },
+        )
+        AppRoute.StreamRecovered -> Phase16RecoveredScreen(
+            captureController = captureController,
+            onReturn = { onRouteChanged(AppRoute.LiveBroadcast) },
+            onStats = { onRouteChanged(AppRoute.LiveStats) },
+        )
+        AppRoute.RecoveryFailed -> Phase16RecoveryFailedScreen(
+            captureController = captureController,
+            onRetry = { onRouteChanged(AppRoute.Reconnecting) },
+            onEnd = { onRouteChanged(AppRoute.EndStreamConfirmation) },
+        )
+        AppRoute.DestinationFailure -> Phase16RecoveryHubScreen(
+            captureController = captureController,
+            onReconnect = { onRouteChanged(AppRoute.Reconnecting) },
+            onEnd = { onRouteChanged(AppRoute.EndStreamConfirmation) },
+            onReturn = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
+        AppRoute.StreamInterrupted -> Phase16RecoveryHubScreen(
+            captureController = captureController,
+            onReconnect = { onRouteChanged(AppRoute.Reconnecting) },
+            onEnd = { onRouteChanged(AppRoute.EndStreamConfirmation) },
+            onReturn = { onRouteChanged(AppRoute.LiveBroadcast) },
+        )
 
         AppRoute.StreamProcessing -> StreamProcessingScreen(
             onSummary = { onRouteChanged(AppRoute.StreamSummary) },
@@ -227,77 +381,145 @@ fun RootNavigation(
             onDone = { onRouteChanged(AppRoute.Main(AppDestination.Activity)) },
         )
         AppRoute.StreamPerformance -> StreamPerformanceScreen(captureController) { onRouteChanged(AppRoute.StreamSummary) }
-        AppRoute.ActivityDetail -> ActivityDetailScreen { onRouteChanged(AppRoute.Main(AppDestination.Activity)) }
+        AppRoute.ActivityDetail -> Phase25StreamAnalyticsScreen(
+            state = integrationState,
+            captureController = captureController,
+            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Activity)) },
+        )
 
-        AppRoute.Plans -> PlansScreen(
-            onRoute = onRouteChanged,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Home)) },
-        )
-        AppRoute.PlanComparison -> PlanComparisonScreen { onRouteChanged(AppRoute.Plans) }
-        AppRoute.CheckoutConfirmation -> CheckoutConfirmationScreen(
-            onRoute = onRouteChanged,
-            onBack = { onRouteChanged(AppRoute.Plans) },
-        )
-        AppRoute.PurchaseState -> PurchaseStateScreen(
-            onManage = { onRouteChanged(AppRoute.ManageSubscription) },
-            onBack = { onRouteChanged(AppRoute.Plans) },
-        )
-        AppRoute.ManageSubscription -> ManageSubscriptionScreen { onRouteChanged(AppRoute.Plans) }
-
-        AppRoute.AccountSecurity -> ConnectedAccountSecurityScreen(
+        AppRoute.Plans -> Phase29MembershipScreen(
             state = integrationState,
             onRoute = onRouteChanged,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Settings)) },
         )
-        AppRoute.StreamingDefaults -> StreamingDefaultsScreen(
-            streamState = streamState,
-            profilesState = profilesState,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Settings)) },
-        )
-        AppRoute.VideoAudioDefaults -> VideoAudioDefaultsScreen(
-            streamState = streamState,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Settings)) },
-        )
-        AppRoute.AppearanceNotifications -> AppearanceNotificationsScreen {
-            onRouteChanged(AppRoute.Main(AppDestination.Settings))
-        }
+        // Legacy purchase routes intentionally point back into the locked membership/billing flow.
+        AppRoute.PlanComparison -> Phase29MembershipScreen(integrationState, onRouteChanged)
+        AppRoute.CheckoutConfirmation -> Phase30BillingScreen(integrationState, onRouteChanged)
+        AppRoute.PurchaseState -> Phase30BillingScreen(integrationState, onRouteChanged)
+        AppRoute.ManageSubscription -> Phase30BillingScreen(integrationState, onRouteChanged)
 
-        AppRoute.HelpCenter -> HelpCenterScreen(
+        AppRoute.EditProfile -> Phase28EditProfileScreen(integrationState, onRouteChanged)
+        AppRoute.Billing -> Phase30BillingScreen(integrationState, onRouteChanged)
+        AppRoute.PaymentMethods -> Phase30PaymentMethodsScreen(onRouteChanged)
+        AppRoute.SettingsHub -> Phase31SettingsScreen(
+            state = integrationState,
             onRoute = onRouteChanged,
-            onBack = { onRouteChanged(AppRoute.Main(AppDestination.Settings)) },
+            onDestination = goMain,
         )
-        AppRoute.Troubleshooting -> TroubleshootingScreen { onRouteChanged(AppRoute.HelpCenter) }
-        AppRoute.ContactSupport -> ContactSupportScreen { onRouteChanged(AppRoute.HelpCenter) }
-        AppRoute.LegalPrivacy -> LegalPrivacyScreen { onRouteChanged(AppRoute.HelpCenter) }
-        AppRoute.DeleteAccount -> DeleteAccountScreen { onRouteChanged(AppRoute.AccountSecurity) }
+        AppRoute.StreamingSettings -> Phase32StreamingSettingsScreen(streamState, integrationState, onRouteChanged)
+        AppRoute.AccountSettings -> Phase33AccountSettingsScreen(integrationState, onRouteChanged)
 
-        AppRoute.Offline -> OfflineScreen(
+        // Legacy aliases retained for old deep-links.
+        AppRoute.AccountSecurity -> Phase33AccountSettingsScreen(integrationState, onRouteChanged)
+        AppRoute.StreamingDefaults -> Phase32StreamingSettingsScreen(streamState, integrationState, onRouteChanged)
+        AppRoute.VideoAudioDefaults -> Phase32StreamingSettingsScreen(streamState, integrationState, onRouteChanged)
+        AppRoute.AppearanceNotifications -> Phase31SettingsScreen(integrationState, onRouteChanged, goMain)
+
+        AppRoute.HelpCenter -> Phase34SupportHubScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+            onBack = { onRouteChanged(AppRoute.SettingsHub) },
+        )
+        AppRoute.Troubleshooting -> Phase34TroubleshootingScreen(
+            onRoute = onRouteChanged,
+            onBack = { onRouteChanged(AppRoute.HelpCenter) },
+        )
+        AppRoute.ContactSupport -> Phase34ContactSupportScreen(
+            state = integrationState,
+            onBack = { onRouteChanged(AppRoute.HelpCenter) },
+        )
+        AppRoute.Diagnostics -> Phase35DiagnosticsScreen(
+            state = integrationState,
+            streamState = streamState,
+            captureController = captureController,
+            permissions = permissionSetupController,
+            onRoute = onRouteChanged,
+            onBack = { onRouteChanged(AppRoute.SettingsHub) },
+        )
+        AppRoute.LegalPrivacy -> Phase36LegalAboutScreen(
+            state = integrationState,
+            onBack = { onRouteChanged(AppRoute.SettingsHub) },
+        )
+        AppRoute.DeleteAccount -> DeleteAccountScreen(
+            state = integrationState,
+            onBack = { onRouteChanged(AppRoute.AccountSecurity) },
+            onDeleted = { onRouteChanged(AppRoute.SignIn) },
+        )
+
+        AppRoute.Offline -> Phase37OfflineScreen(
             onRetry = { onRouteChanged(AppRoute.Main(AppDestination.Home)) },
             onHome = { onRouteChanged(AppRoute.Main(AppDestination.Home)) },
         )
-        AppRoute.SessionExpired -> SessionExpiredScreen { onRouteChanged(AppRoute.SignIn) }
-        AppRoute.PermissionBlocked -> PermissionBlockedScreen { onRouteChanged(AppRoute.Main(AppDestination.Settings)) }
-        AppRoute.ServiceError -> ServiceErrorScreen(
+        AppRoute.SessionExpired -> Phase37SessionExpiredScreen { onRouteChanged(AppRoute.SignIn) }
+        AppRoute.PermissionBlocked -> Phase37PermissionBlockedScreen { onRouteChanged(AppRoute.SettingsHub) }
+        AppRoute.ServiceError -> Phase37ServiceErrorScreen(
             onRetry = { onRouteChanged(AppRoute.Main(AppDestination.Home)) },
             onHome = { onRouteChanged(AppRoute.Main(AppDestination.Home)) },
         )
-        AppRoute.DesignSystemStates -> DesignSystemStatesScreen {
-            onRouteChanged(AppRoute.Main(AppDestination.Settings))
-        }
+        AppRoute.DesignSystemStates -> Phase38GlobalComponentsScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+            onBack = { onRouteChanged(AppRoute.Diagnostics) },
+        )
+        AppRoute.GlobalComponents -> Phase38GlobalComponentsScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+            onBack = { onRouteChanged(AppRoute.Diagnostics) },
+        )
+        AppRoute.FunctionalQa -> Phase39FunctionalQaScreen(
+            state = integrationState,
+            streamState = streamState,
+            captureController = captureController,
+            permissions = permissionSetupController,
+            onRoute = onRouteChanged,
+            onDestination = goMain,
+            onBack = { onRouteChanged(AppRoute.Diagnostics) },
+        )
 
         is AppRoute.Main -> when (route.destination) {
-            AppDestination.Home -> HomeV2Screen(onRouteChanged, goMain)
-            AppDestination.Scenes -> ConnectedStudioHomeScreen(integrationState, sceneState, onRouteChanged, goMain)
-            AppDestination.GoLive -> ConnectedStreamDetailsScreen(
+            AppDestination.Home -> ConnectedHomeScreen(
                 state = integrationState,
+                streamState = streamState,
+                captureController = captureController,
                 sceneState = sceneState,
+                permissions = permissionSetupController,
                 onRoute = onRouteChanged,
                 onDestination = goMain,
             )
-            AppDestination.Activity -> ConnectedActivityScreen(integrationState, goMain)
-            AppDestination.Settings -> ConnectedProfileScreen(integrationState, onRouteChanged, goMain)
-            AppDestination.Overlays -> OverlaysScreen(overlayState, goMain)
-            AppDestination.Connections -> ConnectedConnectionsScreen(integrationState, onRouteChanged, home)
+            AppDestination.Scenes -> Phase17StudioScreen(
+                sceneState = sceneState,
+                overlayState = overlayState,
+                facecamState = facecamState,
+                onRoute = onRouteChanged,
+                onDestination = goMain,
+            )
+            AppDestination.GoLive -> Phase13GoLiveOverviewScreen(
+                state = integrationState,
+                streamState = streamState,
+                sceneState = sceneState,
+                facecamState = facecamState,
+                onRoute = onRouteChanged,
+                onDestination = goMain,
+            )
+            AppDestination.Activity -> Phase24StreamHistoryScreen(
+                state = integrationState,
+                onOpenDetails = { id ->
+                    integrationState.selectHistory(id)
+                    onRouteChanged(AppRoute.ActivityDetail)
+                },
+                onDestination = goMain,
+            )
+            AppDestination.Settings -> Phase27ProfileScreen(
+                state = integrationState,
+                onRoute = onRouteChanged,
+                onDestination = goMain,
+            )
+            AppDestination.Overlays -> Phase20OverlaysScreen(
+                overlayState = overlayState,
+                sceneState = sceneState,
+                state = integrationState,
+                onBack = { onRouteChanged(AppRoute.Main(AppDestination.Scenes)) },
+            )
+            AppDestination.Connections -> Phase10ConnectionsScreen(integrationState, onRouteChanged, home)
         }
     }
 }

@@ -34,6 +34,7 @@ internal class ExternalTextureRenderer {
     private var positionLoc = -1
     private var texLoc = -1
     private var matrixLoc = -1
+    private var cropScaleLoc = -1
     private var mirrorLoc = -1
     private var maskLoc = -1
     private var textureSamplerLoc = -1
@@ -44,6 +45,7 @@ internal class ExternalTextureRenderer {
         positionLoc = GLES20.glGetAttribLocation(program, "aPosition")
         texLoc = GLES20.glGetAttribLocation(program, "aTexCoord")
         matrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix")
+        cropScaleLoc = GLES20.glGetUniformLocation(program, "uCropScale")
         mirrorLoc = GLES20.glGetUniformLocation(program, "uMirror")
         maskLoc = GLES20.glGetUniformLocation(program, "uMask")
         textureSamplerLoc = GLES20.glGetUniformLocation(program, "sTexture")
@@ -51,6 +53,7 @@ internal class ExternalTextureRenderer {
         check(positionLoc >= 0) { "aPosition was not found in GL program" }
         check(texLoc >= 0) { "aTexCoord was not found in GL program" }
         check(matrixLoc >= 0) { "uTexMatrix was not found in GL program" }
+        check(cropScaleLoc >= 0) { "uCropScale was not found in GL program" }
         check(mirrorLoc >= 0) { "uMirror was not found in GL program" }
         check(maskLoc >= 0) { "uMask was not found in GL program" }
         check(textureSamplerLoc >= 0) { "sTexture was not found in GL program" }
@@ -107,6 +110,8 @@ internal class ExternalTextureRenderer {
         matrix: FloatArray,
         mirrored: Boolean,
         mask: OverlayMask,
+        cropScaleX: Float = 1f,
+        cropScaleY: Float = 1f,
     ) {
         if (program == 0 || texture == 0) return
 
@@ -140,6 +145,12 @@ internal class ExternalTextureRenderer {
             false,
             matrix,
             0,
+        )
+
+        GLES20.glUniform2f(
+            cropScaleLoc,
+            cropScaleX.coerceIn(0.05f, 1f),
+            cropScaleY.coerceIn(0.05f, 1f),
         )
 
         GLES20.glUniform1i(
@@ -273,6 +284,7 @@ internal class ExternalTextureRenderer {
             attribute vec2 aTexCoord;
 
             uniform mat4 uTexMatrix;
+            uniform vec2 uCropScale;
             uniform int uMirror;
 
             varying vec2 vTex;
@@ -285,6 +297,10 @@ internal class ExternalTextureRenderer {
                 if (uMirror == 1) {
                     tc.x = 1.0 - tc.x;
                 }
+
+                // Center crop in texture space so the captured device screen fills the encoder
+                // canvas without geometric stretching or baked black bars.
+                tc = (tc - vec2(0.5)) * uCropScale + vec2(0.5);
 
                 vTex = (
                     uTexMatrix *

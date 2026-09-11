@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post } from '@nestjs/common';
 import { bearerToken } from '../common/backend-supabase';
 import { RtmpCredentialsService } from './rtmp-credentials.service';
 
@@ -32,5 +32,13 @@ export class RtmpCredentialsController {
     @Param('connectionId') connectionId: string,
   ) {
     return this.service.publishConfig(bearerToken(auth), connectionId);
+  }
+
+  @Delete(':connectionId')
+  clear(
+    @Headers('authorization') auth: string | undefined,
+    @Param('connectionId') connectionId: string,
+  ) {
+    return this.service.clear(bearerToken(auth), connectionId);
   }
 }

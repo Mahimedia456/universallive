@@ -49,6 +49,8 @@ internal class StreamCompositor(
     private val encoderSurface: Surface,
     private val width: Int,
     private val height: Int,
+    initialScreenWidth: Int,
+    initialScreenHeight: Int,
     private val facecam: FacecamRenderConfig,
     private var overlays: List<OverlayRenderConfig> = emptyList(),
 ) {
@@ -80,6 +82,8 @@ internal class StreamCompositor(
     private var cameraFrameReady = false
 
     private var lastPreviewAtMs = 0L
+    @Volatile private var screenInputWidth = initialScreenWidth.coerceAtLeast(2)
+    @Volatile private var screenInputHeight = initialScreenHeight.coerceAtLeast(2)
 
     fun start() {
         thread.start()
@@ -98,7 +102,7 @@ internal class StreamCompositor(
                 cameraTextureId = renderer!!.createExternalTexture()
 
                 screenTexture = SurfaceTexture(screenTextureId).apply {
-                    setDefaultBufferSize(width, height)
+                    setDefaultBufferSize(screenInputWidth, screenInputHeight)
                     setOnFrameAvailableListener({
                         screenFrameReady = true
                         requestRender()
@@ -134,6 +138,16 @@ internal class StreamCompositor(
     fun screenInputSurface(): Surface = requireNotNull(screenSurface)
 
     fun cameraInputSurface(): Surface = requireNotNull(cameraSurface)
+
+    fun updateScreenInputSize(nextWidth: Int, nextHeight: Int) {
+        screenInputWidth = nextWidth.coerceAtLeast(2)
+        screenInputHeight = nextHeight.coerceAtLeast(2)
+        if (!::handler.isInitialized) return
+        handler.post {
+            screenTexture?.setDefaultBufferSize(screenInputWidth, screenInputHeight)
+            if (screenFrameReady) requestRender()
+        }
+    }
 
     fun updateOverlays(next: List<OverlayRenderConfig>) {
         if (!::handler.isInitialized) return
@@ -243,11 +257,29 @@ internal class StreamCompositor(
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
+        // Fill the encoder canvas without stretching. Ultra-wide gaming phones are wider than
+        // 16:9, so crop only the excess edge area. When the phone rotates, the MediaProjection
+        // input dimensions are updated first and the crop is recalculated on the next frame.
+        val sourceAspect = screenInputWidth.toFloat() / screenInputHeight.coerceAtLeast(1)
+        val targetAspect = width.toFloat() / height.coerceAtLeast(1)
+        val cropScaleX: Float
+        val cropScaleY: Float
+        if (sourceAspect > targetAspect) {
+            cropScaleX = (targetAspect / sourceAspect).coerceIn(0.05f, 1f)
+            cropScaleY = 1f
+        } else {
+            cropScaleX = 1f
+            cropScaleY = (sourceAspect / targetAspect).coerceIn(0.05f, 1f)
+        }
+        GLES20.glViewport(0, 0, width, height)
+
         externalRenderer.draw(
             texture = screenTextureId,
             matrix = screenMatrix,
             mirrored = false,
             mask = OverlayMask.NONE,
+            cropScaleX = cropScaleX,
+            cropScaleY = cropScaleY,
         )
 
         if (facecam.enabled && cameraFrameReady) {
@@ -326,13 +358,9 @@ internal class StreamCompositor(
 
         maybePublishPreview()
 
-        val timestampNs =
-            screenTexture
-                ?.timestamp
-                ?.takeIf { it > 0L }
-                ?: System.nanoTime()
-
-        eglWindow.swap(timestampNs)
+        // MediaCodec Surface PTS must advance in realtime. Some vendor SurfaceTexture timestamps
+        // jump during rotation/app switches, so use the monotonic clock for the encoder surface.
+        eglWindow.swap(System.nanoTime())
     }
 
     private fun maybePublishPreview() {

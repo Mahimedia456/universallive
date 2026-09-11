@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { BackendSupabase } from '../common/backend-supabase';
+import { AuthV2Service } from '../auth-v2/auth-v2.service';
 
 type AdminContext = {
   user: any;
@@ -15,7 +16,10 @@ type AdminContext = {
 
 @Injectable()
 export class AdminConsoleService {
-  constructor(private readonly supabase: BackendSupabase) {}
+  constructor(
+    private readonly supabase: BackendSupabase,
+    private readonly auth: AuthV2Service,
+  ) {}
 
   private async context(accessToken: string): Promise<AdminContext> {
     if (!accessToken) {
@@ -71,40 +75,10 @@ export class AdminConsoleService {
       throw new BadRequestException('Email and password are required');
     }
 
-    const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-    const publicKey =
-      process.env.SUPABASE_PUBLISHABLE_KEY ||
-      process.env.SUPABASE_ANON_KEY ||
-      '';
-
-    if (!baseUrl || !publicKey) {
-      throw new UnauthorizedException('Authentication service is not configured');
-    }
-
-    const response = await fetch(
-      `${baseUrl}/auth/v1/token?grant_type=password`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: publicKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-        }),
-      },
-    );
-
-    const payload: any = await response.json().catch(() => null);
-
-    if (!response.ok || !payload?.access_token) {
-      throw new UnauthorizedException(
-        payload?.error_description ||
-          payload?.message ||
-          'Invalid admin email or password',
-      );
-    }
+    const payload = await this.auth.signIn({
+      email: email.trim().toLowerCase(),
+      password,
+    });
 
     let adminContext: AdminContext;
     try {
@@ -116,10 +90,7 @@ export class AdminConsoleService {
     }
 
     return {
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token || null,
-      expires_in: payload.expires_in || null,
-      token_type: payload.token_type || 'bearer',
+      ...payload,
       admin: {
         id: adminContext.admin.id,
         userId: adminContext.user.id,

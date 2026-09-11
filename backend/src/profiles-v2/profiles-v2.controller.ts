@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Put } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Put } from '@nestjs/common';
 import { readBearerToken } from '../common/bearer-token';
 import { ProfilesV2Service } from './profiles-v2.service';
 
@@ -23,8 +23,26 @@ export class ProfilesV2Controller {
       onboardingCompleted?: boolean;
       locale?: string | null;
       timezone?: string | null;
+      bio?: string | null;
+      websiteUrl?: string | null;
     },
   ) {
     return this.profiles.upsertProfile(readBearerToken(authorization), body);
+  }
+
+  @Post('avatar/upload-url')
+  avatarUpload(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { extension?: string },
+  ) {
+    return this.profiles.avatarUpload(readBearerToken(authorization), body?.extension || 'webp');
+  }
+
+  @Post('avatar/finalize')
+  finalizeAvatar(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { path: string },
+  ) {
+    return this.profiles.finalizeAvatar(readBearerToken(authorization), body?.path);
   }
 }

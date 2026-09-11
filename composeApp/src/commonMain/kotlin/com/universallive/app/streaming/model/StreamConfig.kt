@@ -19,7 +19,7 @@ enum class StreamOrientation(val label: String) {
 
 data class StreamConfig(
     val resolution: StreamResolution = StreamResolution.P1080,
-    val fps: StreamFps = StreamFps.FPS60,
+    val fps: StreamFps = StreamFps.FPS30,
     val bitrateKbps: Int = 6800,
     val orientation: StreamOrientation = StreamOrientation.Landscape,
     val microphoneEnabled: Boolean = true,

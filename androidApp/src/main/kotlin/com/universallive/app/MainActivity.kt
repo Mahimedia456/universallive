@@ -9,10 +9,12 @@ import android.media.projection.MediaProjectionConfig
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.universallive.app.streaming.CaptureBridge
@@ -20,10 +22,33 @@ import com.universallive.app.integration.AndroidMobileBackendApi
 import com.universallive.app.streaming.ScreenCaptureService
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.CaptureMode
+import com.universallive.app.permissions.PermissionSetupController
 
 class MainActivity : ComponentActivity() {
     private lateinit var captureController: CaptureController
+    private lateinit var permissionSetupController: PermissionSetupController
     private var openLiveRequested by mutableStateOf(false)
+    private var pushRouteRequested by mutableStateOf<String?>(null)
+    private var systemBackRequest by mutableStateOf(0)
+    private var lastRootBackAt: Long = 0L
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        permissionSetupController.updateNotifications(granted)
+    }
+
+    private val microphonePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        permissionSetupController.updateMicrophone(granted)
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        permissionSetupController.updateCamera(granted)
+    }
 
     private val capturePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -81,6 +106,34 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openLiveRequested = intent?.getBooleanExtra(EXTRA_OPEN_LIVE_SCREEN, false) == true
+        pushRouteRequested = intent?.getStringExtra(EXTRA_PUSH_ROUTE)
+
+        permissionSetupController = PermissionSetupController(
+            requestNotificationsAction = {
+                if (Build.VERSION.SDK_INT < 33) {
+                    permissionSetupController.updateNotifications(granted = true, notRequired = true)
+                } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                    permissionSetupController.updateNotifications(granted = true)
+                } else {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            requestMicrophoneAction = {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    permissionSetupController.updateMicrophone(granted = true)
+                } else {
+                    microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            requestCameraAction = {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    permissionSetupController.updateCamera(granted = true)
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+            },
+        )
+        syncPermissionSetupState()
 
         captureController = CaptureController(
             requestStart = { requestCapturePermissions() },
@@ -109,13 +162,29 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            BackHandler(enabled = true) { systemBackRequest += 1 }
             UniversalLiveApp(
                 captureController = captureController,
                 mobileBackendApi = AndroidMobileBackendApi(applicationContext),
+                permissionSetupController = permissionSetupController,
                 openLiveRequested = openLiveRequested,
                 onOpenLiveConsumed = { openLiveRequested = false },
+                pushRouteRequested = pushRouteRequested,
+                onPushRouteConsumed = { pushRouteRequested = null },
+                systemBackRequest = systemBackRequest,
+                onRootBackRequested = ::handleRootBackRequested,
             )
         }
+    }
+
+    private fun handleRootBackRequested() {
+        val now = System.currentTimeMillis()
+        if (now - lastRootBackAt <= 1800L) {
+            finish()
+            return
+        }
+        lastRootBackAt = now
+        Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -123,6 +192,25 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_LIVE_SCREEN, false)) {
             openLiveRequested = true
+        }
+        intent.getStringExtra(EXTRA_PUSH_ROUTE)?.takeIf { it.isNotBlank() }?.let {
+            pushRouteRequested = it
+        }
+    }
+
+    private fun syncPermissionSetupState() {
+        permissionSetupController.updateMicrophone(
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED,
+        )
+        permissionSetupController.updateCamera(
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
+        )
+        if (Build.VERSION.SDK_INT < 33) {
+            permissionSetupController.updateNotifications(granted = true, notRequired = true)
+        } else {
+            permissionSetupController.updateNotifications(
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+            )
         }
     }
 
@@ -166,6 +254,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_LIVE_SCREEN = "open_live_screen"
+        const val EXTRA_PUSH_ROUTE = "push_route"
+        const val EXTRA_PUSH_NOTIFICATION_ID = "push_notification_id"
     }
 
 }

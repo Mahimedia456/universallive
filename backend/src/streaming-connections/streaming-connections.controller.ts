@@ -13,6 +13,14 @@ export class StreamingConnectionsController {
     return this.service.list(bearerToken(auth));
   }
 
+  @Get(':id')
+  detail(
+    @Headers('authorization') auth: string | undefined,
+    @Param('id') id: string,
+  ) {
+    return this.service.detail(bearerToken(auth), id);
+  }
+
   @Post()
   create(
     @Headers('authorization') auth: string | undefined,

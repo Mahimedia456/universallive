@@ -29,8 +29,21 @@ class RtmpPublisher(
         val bitrateBps: Long = 0,
     )
 
+    data class Metrics(
+        val lastVideoPacketAgeMs: Int? = null,
+        val lastAudioPacketAgeMs: Int? = null,
+        val publisherEnqueueLatencyMs: Int? = null,
+        val socketWriteLatencyMs: Int? = null,
+        val rtmpQueueDepth: Int? = null,
+        val keyframeIntervalMs: Int? = null,
+        val videoPtsMonotonic: Boolean? = null,
+        val audioPtsMonotonic: Boolean? = null,
+        val reconnectCount: Int = 0,
+    )
+
     private val client = RtmpClient(this)
     private val videoPaceLock = Any()
+    private val audioPaceLock = Any()
     private val ptsLock = Any()
 
     @Volatile private var currentUrl: String = ""
@@ -44,6 +57,18 @@ class RtmpPublisher(
     private var nextVideoSendNs = 0L
     private var lastVideoPtsUs = -1L
     private var lastAudioPtsUs = -1L
+    private var firstAudioSourcePtsUs = -1L
+
+    @Volatile private var lastVideoSentAtMs = 0L
+    @Volatile private var lastAudioSentAtMs = 0L
+    @Volatile private var lastPublisherEnqueueLatencyMs = -1
+    @Volatile private var lastKeyframeSentAtMs = 0L
+    @Volatile private var measuredKeyframeIntervalMs = -1
+    @Volatile private var videoPtsMonotonic = true
+    @Volatile private var audioPtsMonotonic = true
+    @Volatile private var previousVideoPacketPtsUs = -1L
+    @Volatile private var previousAudioPacketPtsUs = -1L
+    @Volatile private var reconnectCount = 0
 
     fun start(url: String, width: Int, height: Int, fps: Int, audioEnabled: Boolean) {
         currentUrl = url
@@ -51,6 +76,16 @@ class RtmpPublisher(
         startRequested = true
         connectionStarted = false
         targetFps = fps.coerceIn(15, 60)
+        reconnectCount = 0
+        lastVideoSentAtMs = 0L
+        lastAudioSentAtMs = 0L
+        lastPublisherEnqueueLatencyMs = -1
+        lastKeyframeSentAtMs = 0L
+        measuredKeyframeIntervalMs = -1
+        videoPtsMonotonic = true
+        audioPtsMonotonic = true
+        previousVideoPacketPtsUs = -1L
+        previousAudioPacketPtsUs = -1L
         resetRealtimeClock()
 
         client.setOnlyVideo(!audioEnabled)
@@ -92,7 +127,19 @@ class RtmpPublisher(
         val packetInfo = MediaCodec.BufferInfo().apply {
             set(0, info.size, ptsUs, info.flags)
         }
+        if (previousVideoPacketPtsUs >= 0L && ptsUs <= previousVideoPacketPtsUs) videoPtsMonotonic = false
+        previousVideoPacketPtsUs = ptsUs
+        val beforeNs = SystemClock.elapsedRealtimeNanos()
         client.sendVideo(dup.slice(), packetInfo)
+        val afterMs = SystemClock.elapsedRealtime()
+        lastPublisherEnqueueLatencyMs = ((SystemClock.elapsedRealtimeNanos() - beforeNs) / 1_000_000L).toInt()
+        lastVideoSentAtMs = afterMs
+        if (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0) {
+            if (lastKeyframeSentAtMs > 0L) {
+                measuredKeyframeIntervalMs = (afterMs - lastKeyframeSentAtMs).toInt().coerceAtLeast(0)
+            }
+            lastKeyframeSentAtMs = afterMs
+        }
     }
 
     fun sendAudio(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
@@ -102,9 +149,43 @@ class RtmpPublisher(
         dup.position(info.offset)
         dup.limit(info.offset + info.size)
         val packetInfo = MediaCodec.BufferInfo().apply {
-            set(0, info.size, realtimePtsUs(video = false), info.flags)
+            // Keep AAC's sample-clock spacing (roughly 21.33 ms at 48 kHz) instead of stamping
+            // packets with the instant they happen to leave the encoder. Rewriting every buffered
+            // AAC packet to "now" collapses timestamps and is heard as crackle/noise or speed-up.
+            set(0, info.size, paceAudioAndGetPtsUs(info.presentationTimeUs), info.flags)
         }
+        if (previousAudioPacketPtsUs >= 0L && packetInfo.presentationTimeUs <= previousAudioPacketPtsUs) audioPtsMonotonic = false
+        previousAudioPacketPtsUs = packetInfo.presentationTimeUs
+        val beforeNs = SystemClock.elapsedRealtimeNanos()
         client.sendAudio(dup.slice(), packetInfo)
+        lastPublisherEnqueueLatencyMs = ((SystemClock.elapsedRealtimeNanos() - beforeNs) / 1_000_000L).toInt()
+        lastAudioSentAtMs = SystemClock.elapsedRealtime()
+    }
+
+    private fun paceAudioAndGetPtsUs(sourcePtsUs: Long): Long {
+        synchronized(audioPaceLock) {
+            ensureRealtimeClock()
+            if (firstAudioSourcePtsUs < 0L) firstAudioSourcePtsUs = sourcePtsUs
+            val normalizedUs = (sourcePtsUs - firstAudioSourcePtsUs).coerceAtLeast(0L)
+
+            // Do not let an encoder burst upload future audio faster than realtime. Keep the AAC
+            // source timeline intact, only waiting when it is genuinely ahead of the live clock.
+            var nowNs = SystemClock.elapsedRealtimeNanos()
+            var wallUs = ((nowNs - publishClockStartNs).coerceAtLeast(0L) / 1_000L)
+            val aheadUs = normalizedUs - wallUs
+            if (aheadUs > 2_000L) {
+                LockSupport.parkNanos((aheadUs * 1_000L).coerceAtMost(60_000_000L))
+                nowNs = SystemClock.elapsedRealtimeNanos()
+                wallUs = ((nowNs - publishClockStartNs).coerceAtLeast(0L) / 1_000L)
+            }
+
+            val safeUs = minOf(normalizedUs, wallUs + 20_000L)
+            synchronized(ptsLock) {
+                val next = maxOf(safeUs, lastAudioPtsUs + 1L)
+                lastAudioPtsUs = next
+                return next
+            }
+        }
     }
 
     private fun paceVideoAndGetPtsUs(): Long {
@@ -159,8 +240,26 @@ class RtmpPublisher(
                 nextVideoSendNs = 0L
                 lastVideoPtsUs = -1L
                 lastAudioPtsUs = -1L
+                firstAudioSourcePtsUs = -1L
             }
         }
+    }
+
+    fun metricsSnapshot(): Metrics {
+        val now = SystemClock.elapsedRealtime()
+        return Metrics(
+            lastVideoPacketAgeMs = lastVideoSentAtMs.takeIf { it > 0L }?.let { (now - it).toInt().coerceAtLeast(0) },
+            lastAudioPacketAgeMs = lastAudioSentAtMs.takeIf { it > 0L }?.let { (now - it).toInt().coerceAtLeast(0) },
+            publisherEnqueueLatencyMs = lastPublisherEnqueueLatencyMs.takeIf { it >= 0 },
+            // Pedro's RtmpClient does not expose socket-write latency or internal queue depth here.
+            // Leave both unknown instead of reporting a fabricated zero.
+            socketWriteLatencyMs = null,
+            rtmpQueueDepth = null,
+            keyframeIntervalMs = measuredKeyframeIntervalMs.takeIf { it >= 0 },
+            videoPtsMonotonic = previousVideoPacketPtsUs.takeIf { it >= 0L }?.let { videoPtsMonotonic },
+            audioPtsMonotonic = previousAudioPacketPtsUs.takeIf { it >= 0L }?.let { audioPtsMonotonic },
+            reconnectCount = reconnectCount,
+        )
     }
 
     fun stop() {
@@ -183,6 +282,7 @@ class RtmpPublisher(
 
     override fun onConnectionFailed(reason: String) {
         if (!stoppedByUser && client.shouldRetry(reason)) {
+            reconnectCount += 1
             resetRealtimeClock()
             onState(State(Status.RECONNECTING, "Connection lost • retrying ingest"))
             client.reConnect(1500)

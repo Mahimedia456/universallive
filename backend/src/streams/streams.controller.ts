@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import type { User } from '@supabase/supabase-js';
 import { AuthUser } from '../auth/auth-user.decorator';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
+import { UniversalLiveAuthGuard } from '../auth/universallive-auth.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StartStreamDto, StreamMetricDto, UpdateStreamStatusDto } from './stream.dto';
 
 @Controller('streams')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(UniversalLiveAuthGuard)
 export class StreamsController {
   constructor(private readonly supabase: SupabaseService) {}
 

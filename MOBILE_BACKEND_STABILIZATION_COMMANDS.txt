@@ -1,0 +1,99 @@
+Universal Live — Mobile + Backend Stabilization Commands
+========================================================
+
+TARGET PROJECT
+E:\UniversalLive
+
+0) MERGE
+Extract this ZIP into E:\UniversalLive and allow these patch files to overwrite.
+This package does NOT include backend\.env or Firebase service-account credentials.
+
+1) SUPABASE SQL
+Run this entire file in Supabase SQL Editor:
+
+backend/sql/final/0620_mobile_backend_stabilization.sql
+
+Expected final checks:
+service_can_select_onboarding = true
+service_can_insert_onboarding = true
+service_can_update_onboarding = true
+users_without_onboarding = 0
+
+2) INSTALL/VALIDATE BACKEND DEPENDENCIES
+PowerShell terminal #1:
+
+cd E:\UniversalLive\backend
+npm ci
+npm run typecheck
+npm run build
+npm run dev
+
+Keep this terminal running.
+
+If npm ci reports a lock mismatch, use:
+npm install
+npm run typecheck
+npm run build
+npm run dev
+
+3) VERIFY FINAL MOBILE/BACKEND CONTRACT
+PowerShell terminal #2:
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+cd E:\UniversalLive
+.\tools\mobile-backend-final-fix-verify.ps1
+
+Expected:
+MOBILE + BACKEND FINAL FIX VERIFICATION PASSED
+
+4) PHYSICAL ANDROID PHONE + LOCAL BACKEND
+Connect phone via USB with USB debugging enabled.
+
+cd E:\UniversalLive
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\tools\use-local-android-backend.ps1
+
+This sets:
+UL_API_BASE_URL=http://127.0.0.1:3000/api/v1
+and runs:
+adb reverse tcp:3000 tcp:3000
+
+5) FINAL ANDROID BUILD
+
+cd E:\UniversalLive
+.\gradlew.bat clean
+.\gradlew.bat :androidApp:processDebugGoogleServices
+.\gradlew.bat :composeApp:compileKotlinMetadata :androidApp:compileDebugKotlin
+.\gradlew.bat :androidApp:assembleDebug
+
+APK:
+E:\UniversalLive\androidApp\build\outputs\apk\debug\androidApp-debug.apk
+
+Optional direct install to USB-connected phone:
+adb install -r "E:\UniversalLive\androidApp\build\outputs\apk\debug\androidApp-debug.apk"
+
+6) REQUIRED PHONE TESTS
+- Cold open with no live stream -> Splash -> Home/Welcome; NEVER Active Live.
+- Actual live/reconnecting stream -> Active Live restore is allowed.
+- Secondary bottom tab -> Android Back -> Home.
+- Root Home -> Back once shows exit prompt; second Back exits.
+- New account -> Email verify -> Creator onboarding -> consolidated permissions -> Home.
+- Denied optional notification/camera permission must not block setup completion.
+- Go Live mic/camera permission prompts stay in-place.
+- Start Preflight must NOT show raw "Cannot PUT /api/v1/streams/draft/current".
+- Splash is pure black with animated Universal Live logo/tagline.
+
+7) PRODUCTION BACKEND SWITCH
+ONLY after deploying the same final Nest backend to production:
+
+cd E:\UniversalLive
+.\tools\verify-mobile-backend-contract.ps1 -BaseUrl "https://universallive.vercel.app/api/v1"
+.\tools\use-production-android-backend.ps1
+.\gradlew.bat :androidApp:assembleDebug
+
+Expected production contract:
+authProvider = universallive-db
+mobileContractVersion = 2026.09-final
+
+ADMIN
+Admin source/UI is intentionally untouched and remains locked for the next enterprise admin workstream.

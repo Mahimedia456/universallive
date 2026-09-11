@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import type { User } from '@supabase/supabase-js';
 import { AuthUser } from '../auth/auth-user.decorator';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
+import { UniversalLiveAuthGuard } from '../auth/universallive-auth.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import { UpdateProfileDto } from './profile.dto';
 
 @Controller('profile')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(UniversalLiveAuthGuard)
 export class ProfilesController {
   constructor(private readonly supabase: SupabaseService) {}
 

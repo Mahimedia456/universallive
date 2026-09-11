@@ -27,8 +27,12 @@ export class BroadcastSessionsController {
   }
 
   @Post(':id/heartbeat')
-  heartbeat(@Headers('authorization') auth: string | undefined, @Param('id') id: string) {
-    return this.service.heartbeat(bearerToken(auth), id);
+  heartbeat(
+    @Headers('authorization') auth: string | undefined,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.service.heartbeat(bearerToken(auth), id, body || {});
   }
 
   @Post(':id/end')

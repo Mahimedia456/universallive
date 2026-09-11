@@ -1,4 +1,31 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common'; import type { User } from '@supabase/supabase-js'; import { AuthUser } from '../auth/auth-user.decorator'; import { SupabaseAuthGuard } from '../auth/supabase-auth.guard'; import { SupabaseService } from '../supabase/supabase.service';
-@Controller('settings') @UseGuards(SupabaseAuthGuard) export class SettingsController { constructor(private readonly supabase: SupabaseService) {}
-@Get() async get(@AuthUser() user: User){ const {data,error}=await this.supabase.admin.from('user_settings').select('*').eq('user_id',user.id).maybeSingle(); if(error) throw error; return {settings:data}; }
-@Put() async put(@AuthUser() user: User,@Body() body:any){ const row={user_id:user.id,stream_config:body.streamConfig??{},ui_config:body.uiConfig??{},updated_at:new Date().toISOString()}; const {data,error}=await this.supabase.admin.from('user_settings').upsert(row,{onConflict:'user_id'}).select('*').single(); if(error) throw error; return {settings:data}; }}
+import { Body, Controller, Get, Headers, Put } from '@nestjs/common';
+import { readBearerToken } from '../common/bearer-token';
+import { SettingsService } from './settings.service';
+
+@Controller('settings')
+export class SettingsController {
+  constructor(private readonly settings: SettingsService) {}
+
+  @Get()
+  get(@Headers('authorization') authorization?: string) {
+    return this.settings.get(readBearerToken(authorization));
+  }
+
+  @Put()
+  put(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
+    return this.settings.update(readBearerToken(authorization), body || {});
+  }
+
+  @Get('streaming')
+  streaming(@Headers('authorization') authorization?: string) {
+    return this.settings.streaming(readBearerToken(authorization));
+  }
+
+  @Put('streaming')
+  updateStreaming(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.settings.updateStreaming(readBearerToken(authorization), body || {});
+  }
+}

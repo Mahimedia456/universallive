@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.universallive.app.components.*
+import com.universallive.app.integration.DeviceStreamTelemetry
 import com.universallive.app.integration.MobileIntegrationState
 import com.universallive.app.navigation.AppDestination
 import com.universallive.app.navigation.AppRoute
@@ -133,10 +134,11 @@ fun ConnectedGoLiveBackendPanel(
         LaunchedEffect(state.activeBroadcast?.id) {
             while (isActive && state.activeBroadcast != null) {
                 state.heartbeat(
-                    bitrateKbps = null,
-                    fps = null,
-                    droppedFrames = null,
-                    networkStatus = "active",
+                    DeviceStreamTelemetry(
+                        connectionId = state.selectedLiveConnectionId,
+                        networkStatus = "active",
+                        publishStatus = "live",
+                    )
                 )
                 delay(15_000)
             }

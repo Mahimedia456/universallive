@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import type { User } from '@supabase/supabase-js';
 import { AuthUser } from '../auth/auth-user.decorator';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
+import { UniversalLiveAuthGuard } from '../auth/universallive-auth.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Controller('destinations')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(UniversalLiveAuthGuard)
 export class DestinationsController {
   constructor(private readonly supabase: SupabaseService) {}
   @Get() async list(@AuthUser() user: User) {

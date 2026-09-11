@@ -17,6 +17,7 @@ import com.universallive.app.components.*
 import com.universallive.app.navigation.AppDestination
 import com.universallive.app.navigation.AppRoute
 import com.universallive.app.integration.MobileIntegrationState
+import com.universallive.app.integration.DeviceStreamTelemetry
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.PublishStatus
 import com.universallive.app.streaming.facecam.FacecamState
@@ -47,10 +48,37 @@ fun LiveBroadcastV2Screen(
         ) {
             while (true) {
                 integrationState.heartbeat(
-                    bitrateKbps = bitrateKbps.toInt().takeIf { it > 0 },
-                    fps = (snap.encoderFps.takeIf { it > 0 } ?: config.fps.value).toDouble(),
-                    droppedFrames = 0,
-                    networkStatus = snap.publishStatus.name.lowercase(),
+                    DeviceStreamTelemetry(
+                        connectionId = integrationState.selectedLiveConnectionId,
+                        bitrateKbps = bitrateKbps.toInt().takeIf { it > 0 },
+                        targetBitrateKbps = config.bitrateKbps,
+                        encoderBitrateKbps = snap.encoderMeasuredBitrateKbps.takeIf { it > 0 },
+                        rtmpUploadKbps = bitrateKbps.toInt().takeIf { it > 0 },
+                        fps = snap.encodedFpsActual.takeIf { it > 0.0 }
+                            ?: snap.encoderFps.toDouble().takeIf { it > 0.0 }
+                            ?: config.fps.value.toDouble(),
+                        encodedFps = snap.encodedFpsActual.takeIf { it > 0.0 },
+                        sentFps = snap.sentFpsActual.takeIf { it > 0.0 },
+                        droppedFrames = snap.droppedFrames,
+                        publishedVideoFrames = snap.publishedVideoFrames,
+                        publishedAudioFrames = snap.publishedAudioFrames,
+                        encoderWidth = snap.encoderWidth.takeIf { it > 0 },
+                        encoderHeight = snap.encoderHeight.takeIf { it > 0 },
+                        encoderName = snap.encoderName.takeIf { it.isNotBlank() },
+                        networkStatus = snap.publishStatus.name.lowercase(),
+                        publishStatus = snap.publishStatus.name.lowercase(),
+                        audioStatus = snap.audioMessage,
+                        rtmpQueueDepth = snap.rtmpQueueDepth,
+                        socketWriteLatencyMs = snap.socketWriteLatencyMs,
+                        publisherEnqueueLatencyMs = snap.publisherEnqueueLatencyMs,
+                        lastVideoPacketAgeMs = snap.lastVideoPacketAgeMs,
+                        lastAudioPacketAgeMs = snap.lastAudioPacketAgeMs,
+                        keyframeIntervalMs = snap.keyframeIntervalMs,
+                        videoPtsMonotonic = snap.videoPtsMonotonic,
+                        audioPtsMonotonic = snap.audioPtsMonotonic,
+                        reconnectCount = snap.reconnectCount,
+                        publisherInstanceId = snap.publisherInstanceId.takeIf { it.isNotBlank() },
+                    )
                 )
                 delay(15_000)
             }

@@ -1,6 +1,8 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import type { User } from '@supabase/supabase-js';
+import type { UniversalLiveAuthUser } from './auth.types';
 
-export const AuthUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): User => {
-  return ctx.switchToHttp().getRequest<{ user: User }>().user;
-});
+export const AuthUser = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): UniversalLiveAuthUser => {
+    return ctx.switchToHttp().getRequest<{ user: UniversalLiveAuthUser }>().user;
+  },
+);

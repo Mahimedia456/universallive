@@ -9,6 +9,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.universallive.app.components.*
 import com.universallive.app.navigation.AppRoute
+import com.universallive.app.integration.MobileIntegrationState
+import kotlinx.coroutines.launch
 import com.universallive.app.theme.*
 
 @Composable
@@ -114,8 +116,13 @@ fun LegalPrivacyScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun DeleteAccountScreen(onBack: () -> Unit) {
+fun DeleteAccountScreen(
+    state: MobileIntegrationState,
+    onBack: () -> Unit,
+    onDeleted: () -> Unit,
+) {
     var confirmed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     SettingsPage("Delete Account", "This action is intentionally difficult to perform accidentally.", onBack) {
         SettingCard(
@@ -146,8 +153,12 @@ fun DeleteAccountScreen(onBack: () -> Unit) {
         }
 
         Button(
-            onClick = {},
-            enabled = confirmed,
+            onClick = {
+                scope.launch {
+                    if (state.deleteAccount()) onDeleted()
+                }
+            },
+            enabled = confirmed && !state.loading,
             modifier = Modifier.fillMaxWidth().height(54.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = AppLive,

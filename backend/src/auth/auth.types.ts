@@ -1,12 +1,11 @@
 import type { Request } from 'express';
 
-export type SizeMeUserRow = {
+export type UniversalLiveUserRow = {
   id: string;
   email: string;
   password_hash: string;
-  first_name: string;
-  last_name: string | null;
-  display_name: string;
+  full_name: string | null;
+  username: string | null;
   email_verified_at: string | null;
   password_changed_at: string;
   is_active: boolean;
@@ -17,37 +16,20 @@ export type SizeMeUserRow = {
   updated_at: string;
 };
 
-export type AuthenticatedUserContext = {
+export type UniversalLiveAuthUser = {
   id: string;
   email: string;
-  role: 'user';
-  firstName: string;
-  lastName?: string;
+  phone: null;
+  created_at: string;
+  email_confirmed_at: string | null;
+  user_metadata: {
+    full_name: string | null;
+    username: string | null;
+  };
 };
 
 export type AuthenticatedRequest = Request & {
-  profileId?: string;
+  user?: UniversalLiveAuthUser;
   userId?: string;
-  authUser?: AuthenticatedUserContext;
   accessToken?: string;
-};
-
-export type AccessTokenPayload = {
-  sub: string;
-  email: string;
-  typ: 'access';
-  iat: number;
-  exp: number;
-  iss: string;
-  aud: string;
-};
-
-export type ResetTokenPayload = {
-  sub: string;
-  email: string;
-  typ: 'password_reset';
-  iat: number;
-  exp: number;
-  iss: string;
-  aud: string;
 };

@@ -13,5 +13,6 @@ import { RtmpCredentialsService } from './rtmp-credentials.service';
     CredentialCryptoService,
     RtmpCredentialsService,
   ],
+  exports: [RtmpCredentialsService],
 })
 export class RtmpCredentialsModule {}

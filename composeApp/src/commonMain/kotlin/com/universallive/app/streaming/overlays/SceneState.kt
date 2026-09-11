@@ -15,6 +15,12 @@ class SceneState {
     var activeSceneId by mutableStateOf("scene-main"); private set
     val activeScene get() = scenes.firstOrNull { it.id == activeSceneId } ?: scenes.first()
 
+    fun replaceFromBackend(next: List<StreamScene>, activeId: String?) {
+        if (next.isEmpty()) return
+        scenes = next
+        activeSceneId = activeId?.takeIf { id -> next.any { it.id == id } } ?: next.first().id
+    }
+
     fun add(name: String, layerIds: List<String>) {
         val id = "scene-${scenes.size + 1}"
         scenes = scenes + StreamScene(id, name.ifBlank { "Scene ${scenes.size + 1}" }, layerIds)

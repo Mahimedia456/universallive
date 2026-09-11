@@ -23,6 +23,8 @@ class OverlayState {
     // No forced broadcast watermark. User-added overlays only.
     var layers by mutableStateOf<List<OverlayLayer>>(emptyList()); private set
 
+    fun replaceFromBackend(next: List<OverlayLayer>) { layers = next }
+
     fun upsert(layer: OverlayLayer) {
         val old = layers.indexOfFirst { it.id == layer.id }
         layers = if (old < 0) layers + layer else layers.toMutableList().also { it[old] = layer }
