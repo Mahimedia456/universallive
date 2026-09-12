@@ -38,7 +38,7 @@ fun StreamProcessingScreen(
 
         StateCard(
             "You can continue",
-            "The final backend activity record will sync in the integration stage. This UI does not need to block you.",
+            "Your completed broadcast will appear here after its stream summary is finalized.",
         )
 
         UlPrimaryButton("View Stream Summary", onClick = onSummary)
@@ -96,7 +96,7 @@ fun StreamPerformanceScreen(
         subtitle = "Technical broadcast metrics.",
         onBack = onBack,
     ) {
-        StateCard("Bitrate Timeline", "Timeline visualization will bind to stored telemetry after backend integration.") {
+        StateCard("Bitrate Timeline", "Bitrate history appears when telemetry samples are available for this broadcast.") {
             LinearProgressIndicator(
                 progress = { .72f },
                 modifier = Modifier.fillMaxWidth(),
@@ -107,7 +107,7 @@ fun StreamPerformanceScreen(
         StateCard("Frame Delivery", "${snap.publishedVideoFrames} video frames published.")
         StateCard("Encoded Video", "${encodedMb.toInt()} MB encoded during the latest local session.")
         StateCard("Audio", "${snap.publishedAudioFrames} AAC frames published.")
-        StateCard("Dropped Frames", "Detailed dropped-frame telemetry will use the Phase 11 backend stream-health API.")
+        StateCard("Dropped Frames", "Dropped-frame telemetry appears here when a live session reports encoder health data.")
     }
 }
 

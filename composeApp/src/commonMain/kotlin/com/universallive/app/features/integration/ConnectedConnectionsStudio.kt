@@ -148,7 +148,7 @@ fun ConnectedConnectionsScreen(
 
         UlPrimaryButton("Add Destination", onClick = { onRoute(AppRoute.AddConnection) })
         Text(
-            "Saving channels is not plan-limited. Your membership controls how many simultaneous outputs the backend may authorize.",
+            "Save the destinations you use. Your membership determines how many can broadcast simultaneously.",
             color = AppTextMuted,
             fontSize = 11.sp,
         )
@@ -229,7 +229,7 @@ fun ConnectedCustomRtmpScreen(
         )
 
         Text(
-            "Your stream key is encrypted by the backend vault. The app requests it only when the authenticated device starts publishing.",
+            "Your stream key is encrypted and retrieved only when this authenticated device starts publishing.",
             color = AppTextMuted,
             fontSize = 11.sp,
         )
@@ -287,7 +287,7 @@ fun ConnectedConnectionDetailScreen(
             testResult?.let {
                 com.universallive.app.features.batch2.InfoCard(
                     if (it.ok) "Connection ready" else "Destination needs setup",
-                    if (it.ok) "Backend verified the destination configuration." else "Update the RTMP server/key and test again.",
+                    if (it.ok) "Destination configuration verified." else "Update the RTMP server/key and test again.",
                     if (it.ok) "READY" else "FIX",
                     if (it.ok) AppSuccess else AppWarning,
                 )
@@ -429,13 +429,13 @@ fun ConnectedStudioHomeScreen(
             BackendError(state)
 
             com.universallive.app.features.batch3.PreviewCanvas(
-                label = "BACKEND STUDIO",
+                label = "SCENE LIBRARY",
                 footer = state.selectedScene?.let { "${it.name} • ${it.aspectRatio}" }
-                    ?: "Create your first backend-synced scene",
+                    ?: "Create your first scene",
             )
 
             UlCard {
-                Text("Backend-Synced Scenes", color = AppText, fontWeight = FontWeight.Bold)
+                Text("Saved Scenes", color = AppText, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(5.dp))
                 Text(
                     "${state.scenes.size} scene(s) synced • local live compositor remains available for Android broadcast",
@@ -493,7 +493,7 @@ fun ConnectedSceneLibraryScreen(
 
         UlTextField(newName, { newName = it }, "New scene name", placeholder = "Gaming Scene")
         UlPrimaryButton(
-            "Create Backend Scene",
+            "Create Scene",
             onClick = {
                 scope.launch {
                     if (state.addCloudScene(newName)) newName = ""

@@ -124,7 +124,7 @@ fun AccountSecurityScreen(
         Text("DANGER ZONE", color = AppLive, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         SettingCard(
             "Delete Account",
-            "Permanently delete your Universal Live account and backend-synced data.",
+            "Permanently delete your Universal Live account and eligible synced data.",
             status = "DANGER",
             statusColor = AppLive,
             onClick = { onRoute(AppRoute.DeleteAccount) },

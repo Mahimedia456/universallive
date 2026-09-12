@@ -45,7 +45,7 @@ fun ScenesScreen(sceneState: SceneState, overlayState: OverlayState, captureCont
             }
             OutlinedTextField(name, {name=it}, label={Text("Scene name")}, modifier=Modifier.fillMaxWidth())
             Button({ sceneState.add(name, overlayState.layers.map { it.id }); name="" }, modifier=Modifier.fillMaxWidth()) { Text("SAVE CURRENT LAYOUT AS SCENE") }
-            Text("Phase 12 enables live scene switching over the running native compositor.", color=AppTextMuted)
+            Text("Switch scenes while live; the active native compositor applies the selected layout.", color=AppTextMuted)
         }
     }
 }

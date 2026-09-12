@@ -14,6 +14,8 @@ function allowedOrigins(): string[] {
     new Set([
       'http://localhost:5173',
       'http://127.0.0.1:5173',
+      'http://localhost:4173',
+      'http://127.0.0.1:4173',
       'https://universallive.vercel.app',
       ...configured.filter((value) => value !== '*'),
     ]),
@@ -38,7 +40,9 @@ async function bootstrap() {
         return;
       }
 
-      if (configured === '*' || origins.includes(origin)) {
+      const localAdminOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+      const allowDevWildcard = configured === '*' && process.env.NODE_ENV !== 'production';
+      if (allowDevWildcard || origins.includes(origin) || localAdminOrigin) {
         callback(null, true);
         return;
       }

@@ -152,8 +152,8 @@ fun Phase34SupportHubScreen(
         val actions = listOf(
             Triple("LIVE", "Streaming Troubleshooting", "Black screen, audio, lag and publishing issues"),
             Triple("LINK", "Connection Help", "Destination setup, test and RTMP guidance"),
-            Triple("DIAG", "Diagnostics", "Inspect backend, capture, permissions and stream state"),
-            Triple("MAIL", "Contact Support", "Create a real support ticket through the backend"),
+            Triple("DIAG", "Diagnostics", "Inspect capture, permissions, network and stream state"),
+            Triple("MAIL", "Contact Support", "Send a support request to Universal Live"),
         ).filter {
             query.isBlank() || it.second.contains(query, ignoreCase = true) || it.third.contains(query, ignoreCase = true)
         }
@@ -230,7 +230,7 @@ fun Phase34TroubleshootingScreen(
         Spacer(Modifier.height(9.dp))
         UlActionRow("C", "Manage Connections", "Test, edit or replace destination credentials", onClick = { onRoute(AppRoute.Connections) })
         Spacer(Modifier.height(9.dp))
-        UlActionRow("D", "Open Diagnostics", "Inspect current runtime and backend state", onClick = { onRoute(AppRoute.Diagnostics) })
+        UlActionRow("D", "Open Diagnostics", "Inspect the current app, device and streaming state", onClick = { onRoute(AppRoute.Diagnostics) })
     }
 }
 
@@ -247,7 +247,7 @@ fun Phase34ContactSupportScreen(
 
     PhasePage(
         title = "Contact Support",
-        subtitle = "Send a real support request to the Universal Live backend.",
+        subtitle = "Send a support request to the Universal Live team.",
         onBack = onBack,
     ) {
         Text("ISSUE CATEGORY", color = AppPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -781,7 +781,7 @@ fun Phase39FunctionalQaScreen(
 
         Spacer(Modifier.height(14.dp))
         InfoCard(
-            title = "Phase 39 scope",
+            title = "Release readiness",
             body = "This screen combines local device prerequisites with the final authenticated backend smoke run. Required backend checks are persisted for audit; destination/device checks may remain optional until a real device and live destination are configured.",
             tone = AppPrimary,
         )

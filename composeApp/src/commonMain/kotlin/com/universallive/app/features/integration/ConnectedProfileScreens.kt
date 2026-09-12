@@ -176,7 +176,7 @@ fun ConnectedAccountSecurityScreen(
 
     com.universallive.app.features.batch6.SettingsPage(
         "Account & Security",
-        "Manage the account connected to Universal Live backend.",
+        "Manage your Universal Live account, security and profile.",
         onBack,
     ) {
         if (!state.error.isNullOrBlank()) {
@@ -225,7 +225,7 @@ fun ConnectedAccountSecurityScreen(
         Text("DANGER ZONE", color = AppLive, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         com.universallive.app.features.batch6.SettingCard(
             "Delete Account",
-            "Permanently delete your Universal Live account and backend-synced data.",
+            "Permanently delete your Universal Live account and eligible synced data.",
             status = "DANGER",
             statusColor = AppLive,
             onClick = { onRoute(AppRoute.DeleteAccount) },

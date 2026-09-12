@@ -22,7 +22,10 @@ import com.universallive.app.integration.AndroidMobileBackendApi
 import com.universallive.app.streaming.ScreenCaptureService
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.CaptureMode
+import com.universallive.app.streaming.capture.VideoSourceMode
 import com.universallive.app.permissions.PermissionSetupController
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     private lateinit var captureController: CaptureController
@@ -50,37 +53,57 @@ class MainActivity : ComponentActivity() {
         permissionSetupController.updateCamera(granted)
     }
 
+    private fun buildCaptureServiceIntent(resultCode: Int = RESULT_CANCELED, data: Intent? = null): Intent =
+        Intent(this, ScreenCaptureService::class.java).apply {
+            action = ScreenCaptureService.ACTION_START
+            putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+            data?.let { putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, it) }
+            putExtra(ScreenCaptureService.EXTRA_CAPTURE_MIC, captureController.requestedMicrophone)
+            putExtra(ScreenCaptureService.EXTRA_CAPTURE_INTERNAL_AUDIO, captureController.requestedInternalAudio)
+            putExtra(ScreenCaptureService.EXTRA_VIDEO_WIDTH, captureController.requestedWidth)
+            putExtra(ScreenCaptureService.EXTRA_VIDEO_HEIGHT, captureController.requestedHeight)
+            putExtra(ScreenCaptureService.EXTRA_VIDEO_FPS, captureController.requestedFps)
+            putExtra(ScreenCaptureService.EXTRA_VIDEO_BITRATE_KBPS, captureController.requestedBitrateKbps)
+            putExtra(ScreenCaptureService.EXTRA_VIDEO_ORIENTATION, captureController.requestedOrientation)
+            putExtra(ScreenCaptureService.EXTRA_RTMP_SERVER_URL, captureController.requestedRtmpServerUrl)
+            putExtra(ScreenCaptureService.EXTRA_STREAM_KEY, captureController.requestedStreamKey)
+            putExtra(ScreenCaptureService.EXTRA_TARGET_NAME, captureController.requestedTargetName)
+            putExtra(
+                ScreenCaptureService.EXTRA_RTMP_TARGETS_JSON,
+                JSONArray().apply {
+                    captureController.requestedPublishTargets.forEach { target ->
+                        put(
+                            JSONObject()
+                                .put("serverUrl", target.serverUrl)
+                                .put("streamKey", target.streamKey)
+                                .put("targetName", target.targetName)
+                        )
+                    }
+                }.toString(),
+            )
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_ENABLED, captureController.requestedFacecamEnabled)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_LENS, captureController.requestedFacecamLens)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_SHAPE, captureController.requestedFacecamShape)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_X, captureController.requestedFacecamX)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_Y, captureController.requestedFacecamY)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_SIZE, captureController.requestedFacecamSize)
+            putExtra(ScreenCaptureService.EXTRA_FACECAM_MIRRORED, captureController.requestedFacecamMirrored)
+            putExtra(ScreenCaptureService.EXTRA_SCENE_NAME, captureController.requestedSceneName)
+            putExtra(ScreenCaptureService.EXTRA_OVERLAY_PAYLOAD, captureController.requestedOverlayPayload)
+            putExtra(ScreenCaptureService.EXTRA_CAPTURE_MODE, captureController.requestedCaptureMode.label)
+            putExtra(ScreenCaptureService.EXTRA_CAMERA_PRIMARY, captureController.requestedVideoSource == VideoSourceMode.CAMERA)
+        }
+
+    private fun startCameraLiveService() {
+        ContextCompat.startForegroundService(this, buildCaptureServiceIntent())
+    }
+
     private val capturePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         val data = result.data
         if (result.resultCode == RESULT_OK && data != null) {
-            val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
-                action = ScreenCaptureService.ACTION_START
-                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
-                putExtra(ScreenCaptureService.EXTRA_CAPTURE_MIC, captureController.requestedMicrophone)
-                putExtra(ScreenCaptureService.EXTRA_CAPTURE_INTERNAL_AUDIO, captureController.requestedInternalAudio)
-                putExtra(ScreenCaptureService.EXTRA_VIDEO_WIDTH, captureController.requestedWidth)
-                putExtra(ScreenCaptureService.EXTRA_VIDEO_HEIGHT, captureController.requestedHeight)
-                putExtra(ScreenCaptureService.EXTRA_VIDEO_FPS, captureController.requestedFps)
-                putExtra(ScreenCaptureService.EXTRA_VIDEO_BITRATE_KBPS, captureController.requestedBitrateKbps)
-                putExtra(ScreenCaptureService.EXTRA_VIDEO_ORIENTATION, captureController.requestedOrientation)
-                putExtra(ScreenCaptureService.EXTRA_RTMP_SERVER_URL, captureController.requestedRtmpServerUrl)
-                putExtra(ScreenCaptureService.EXTRA_STREAM_KEY, captureController.requestedStreamKey)
-                putExtra(ScreenCaptureService.EXTRA_TARGET_NAME, captureController.requestedTargetName)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_ENABLED, captureController.requestedFacecamEnabled)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_LENS, captureController.requestedFacecamLens)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_SHAPE, captureController.requestedFacecamShape)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_X, captureController.requestedFacecamX)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_Y, captureController.requestedFacecamY)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_SIZE, captureController.requestedFacecamSize)
-                putExtra(ScreenCaptureService.EXTRA_FACECAM_MIRRORED, captureController.requestedFacecamMirrored)
-                putExtra(ScreenCaptureService.EXTRA_SCENE_NAME, captureController.requestedSceneName)
-                putExtra(ScreenCaptureService.EXTRA_OVERLAY_PAYLOAD, captureController.requestedOverlayPayload)
-                putExtra(ScreenCaptureService.EXTRA_CAPTURE_MODE, captureController.requestedCaptureMode.label)
-            }
-            ContextCompat.startForegroundService(this, serviceIntent)
+            ContextCompat.startForegroundService(this, buildCaptureServiceIntent(result.resultCode, data))
         } else {
             captureController.permissionDenied("Screen-capture permission was not granted")
         }
@@ -90,9 +113,11 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
         val micOk = !captureController.requestedMicrophone || grants[Manifest.permission.RECORD_AUDIO] != false
-        val cameraOk = !captureController.requestedFacecamEnabled || grants[Manifest.permission.CAMERA] != false
+        val cameraRequired = captureController.requestedFacecamEnabled || captureController.requestedVideoSource == VideoSourceMode.CAMERA
+        val cameraOk = !cameraRequired || grants[Manifest.permission.CAMERA] != false
         if (micOk && cameraOk) {
-            launchMediaProjectionConsent()
+            if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) startCameraLiveService()
+            else launchMediaProjectionConsent()
         } else {
             captureController.permissionDenied(
                 when {
@@ -216,12 +241,15 @@ class MainActivity : ComponentActivity() {
 
     private fun requestCapturePermissions() {
         val permissions = mutableListOf<String>()
-        val needsAudioPermission = captureController.requestedMicrophone || captureController.requestedInternalAudio
+        val needsAudioPermission = captureController.requestedMicrophone ||
+            (captureController.requestedInternalAudio && captureController.requestedVideoSource == VideoSourceMode.SCREEN)
         if (needsAudioPermission && Build.VERSION.SDK_INT >= 23 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
         ) permissions += Manifest.permission.RECORD_AUDIO
 
-        if (captureController.requestedFacecamEnabled && Build.VERSION.SDK_INT >= 23 &&
+        val needsCameraPermission = captureController.requestedFacecamEnabled ||
+            captureController.requestedVideoSource == VideoSourceMode.CAMERA
+        if (needsCameraPermission && Build.VERSION.SDK_INT >= 23 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
         ) permissions += Manifest.permission.CAMERA
 
@@ -230,6 +258,7 @@ class MainActivity : ComponentActivity() {
         ) permissions += Manifest.permission.POST_NOTIFICATIONS
 
         if (permissions.isNotEmpty()) runtimePermissionsLauncher.launch(permissions.toTypedArray())
+        else if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) startCameraLiveService()
         else launchMediaProjectionConsent()
     }
 

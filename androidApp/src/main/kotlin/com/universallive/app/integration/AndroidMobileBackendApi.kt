@@ -977,20 +977,24 @@ class AndroidMobileBackendApi(
                 authenticated = true,
             )
         )
-        val destination = json.optJSONArray("destinations")?.optJSONObject(0)
-        val configJson = destination?.optJSONObject("publishConfig")
-        val config = configJson?.let {
-            PublishConfig(
-                connectionId = it.optString("connectionId"),
-                platform = it.optString("platform", "custom_rtmp"),
-                displayName = it.optString("displayName", "Destination"),
-                serverUrl = it.optString("serverUrl"),
-                streamKey = it.optString("streamKey"),
-            )
+        val destinations = json.optJSONArray("destinations") ?: org.json.JSONArray()
+        val configs = buildList {
+            for (i in 0 until destinations.length()) {
+                val configJson = destinations.optJSONObject(i)?.optJSONObject("publishConfig") ?: continue
+                val config = PublishConfig(
+                    connectionId = configJson.optString("connectionId"),
+                    platform = configJson.optString("platform", "custom_rtmp"),
+                    displayName = configJson.optString("displayName", "Destination"),
+                    serverUrl = configJson.optString("serverUrl"),
+                    streamKey = configJson.optString("streamKey"),
+                )
+                if (config.serverUrl.isNotBlank() && config.streamKey.isNotBlank()) add(config)
+            }
         }
         StreamRecoveryResult(
             session = broadcastFrom(json.getJSONObject("session")),
-            publishConfig = config,
+            publishConfig = configs.firstOrNull(),
+            publishConfigs = configs,
             recoveryAttempt = json.optInt("recoveryAttempt", 0),
             recoverableUntil = json.optString("recoverableUntil").takeIf { it.isNotBlank() && it != "null" },
         )

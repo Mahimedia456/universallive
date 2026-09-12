@@ -26,7 +26,7 @@ import com.universallive.app.navigation.VerificationFlow
 import com.universallive.app.theme.*
 import org.jetbrains.compose.resources.painterResource
 import universallive.composeapp.generated.resources.Res
-import universallive.composeapp.generated.resources.universallive_logo_on_dark
+import universallive.composeapp.generated.resources.universallive_phase01_splash
 
 /**
  * Phase 01 — Splash.
@@ -35,54 +35,18 @@ import universallive.composeapp.generated.resources.universallive_logo_on_dark
  */
 @Composable
 fun SplashScreen() {
-    val logoAlpha = remember { Animatable(0f) }
-    val logoScale = remember { Animatable(0.86f) }
-    val taglineAlpha = remember { Animatable(0f) }
-
-    LaunchedEffect(Unit) {
-        launch {
-            logoAlpha.animateTo(1f, tween(durationMillis = 620, easing = FastOutSlowInEasing))
-        }
-        launch {
-            logoScale.animateTo(1f, tween(durationMillis = 760, easing = FastOutSlowInEasing))
-        }
-        delay(360)
-        taglineAlpha.animateTo(1f, tween(durationMillis = 420))
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color(0xFF05070A)),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 34.dp),
-        ) {
-            Image(
-                painter = painterResource(Res.drawable.universallive_logo_on_dark),
-                contentDescription = "Universal Live",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        alpha = logoAlpha.value
-                        scaleX = logoScale.value
-                        scaleY = logoScale.value
-                    },
-                contentScale = ContentScale.Fit,
-            )
-            Spacer(Modifier.height(22.dp))
-            Text(
-                "LIVE BRINGS US CLOSER",
-                color = AppPrimary,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.2.sp,
-                modifier = Modifier.graphicsLayer { alpha = taglineAlpha.value },
-            )
-        }
+        Image(
+            painter = painterResource(Res.drawable.universallive_phase01_splash),
+            contentDescription = "Universal Live",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
     }
 }
 

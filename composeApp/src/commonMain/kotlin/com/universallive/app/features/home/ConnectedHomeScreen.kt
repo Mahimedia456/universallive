@@ -237,7 +237,7 @@ private fun ReadinessGrid(
     onClick: () -> Unit,
 ) {
     UlCard(Modifier.clickable(onClick = onClick)) {
-        HomeStatusRow("Network", "Backend reachable", AppSuccess)
+        HomeStatusRow("Network", "Services reachable", AppSuccess)
         HomeStatusRow("Microphone", microphone, if (microphone == "Ready") AppSuccess else AppWarning)
         HomeStatusRow("Scene", scene, AppSuccess)
         HomeStatusRow("Destination", destination, if (destination == "Connected") AppSuccess else AppWarning)
@@ -384,7 +384,7 @@ fun Phase09StreamReadinessScreen(
         UlStatusBadge(if (ready) "READY TO GO LIVE" else "ACTION NEEDED", if (ready) AppSuccess else AppWarning)
         Spacer(Modifier.height(16.dp))
         UlCard {
-            HomeStatusRow("Account / backend", if (state.session != null) "Connected" else "Session unavailable", if (state.session != null) AppSuccess else AppWarning)
+            HomeStatusRow("Account / service", if (state.session != null) "Connected" else "Session unavailable", if (state.session != null) AppSuccess else AppWarning)
             HomeStatusRow("Microphone", if (micReady) "Ready" else "Permission needed", if (micReady) AppSuccess else AppWarning)
             HomeStatusRow("Device audio", if (config.internalAudioEnabled) "Enabled at capture" else "Off", if (config.internalAudioEnabled) AppSuccess else AppTextMuted)
             HomeStatusRow("Screen capture", if (screenReady) "Ready at Go Live" else "Review permissions", if (screenReady) AppSuccess else AppWarning)

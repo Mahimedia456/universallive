@@ -40,6 +40,9 @@ import com.universallive.app.MainActivity
 import kotlin.concurrent.thread
 import kotlin.math.sqrt
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import org.json.JSONArray
 
 class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
@@ -51,6 +54,8 @@ class ScreenCaptureService : Service() {
     private var captureInputHeight = 0
     private var captureBaseWidth = 1920
     private var captureBaseHeight = 1080
+    @Volatile private var requestedOrientationMode = "Auto"
+    @Volatile private var rotationRebuildInProgress = false
     private var captureDensityDpi = DisplayMetrics.DENSITY_DEFAULT
 
     private var videoEncoder: MediaCodec? = null
@@ -58,7 +63,11 @@ class ScreenCaptureService : Service() {
     private var encoderThread: Thread? = null
     private var streamCompositor: StreamCompositor? = null
     private var facecamCamera: FacecamCameraController? = null
-    private var rtmpPublisher: RtmpPublisher? = null
+    private data class RtmpTarget(val serverUrl: String, val streamKey: String, val name: String)
+    private data class ActivePublisher(val key: String, val target: RtmpTarget, val publisher: RtmpPublisher)
+    private val rtmpPublishers = CopyOnWriteArrayList<ActivePublisher>()
+    private val rtmpStates = ConcurrentHashMap<String, RtmpPublisher.State>()
+    @Volatile private var rtmpTargets: List<RtmpTarget> = emptyList()
     @Volatile private var rtmpServerUrl = ""
     @Volatile private var streamKey = ""
     @Volatile private var publishTarget = ""
@@ -123,6 +132,7 @@ class ScreenCaptureService : Service() {
     @Volatile private var sceneName = "Main"
     @Volatile private var overlayPayload = ""
     @Volatile private var captureMode = "Entire device"
+    @Volatile private var cameraPrimaryMode = false
     @Volatile private var captureStartedAtEpochMs = 0L
 
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -131,7 +141,7 @@ class ScreenCaptureService : Service() {
 
         override fun onDisplayChanged(displayId: Int) {
             val defaultId = displayManager.getDisplay(Display.DEFAULT_DISPLAY)?.displayId ?: Display.DEFAULT_DISPLAY
-            if (displayId != defaultId || virtualDisplay == null || streamCompositor == null) return
+            if (cameraPrimaryMode || displayId != defaultId || virtualDisplay == null || streamCompositor == null) return
             refreshCaptureForDeviceRotation()
         }
     }
@@ -195,17 +205,30 @@ class ScreenCaptureService : Service() {
         metricsPublishedFrames = 0L
         microphoneRequested = intent.getBooleanExtra(EXTRA_CAPTURE_MIC, true)
         internalAudioRequested = intent.getBooleanExtra(EXTRA_CAPTURE_INTERNAL_AUDIO, true)
+        cameraPrimaryMode = intent.getBooleanExtra(EXTRA_CAMERA_PRIMARY, false)
+        if (cameraPrimaryMode) internalAudioRequested = false
 
         val requestedWidth = intent.getIntExtra(EXTRA_VIDEO_WIDTH, 1920).coerceAtLeast(320)
         val requestedHeight = intent.getIntExtra(EXTRA_VIDEO_HEIGHT, 1080).coerceAtLeast(240)
         encoderFps = intent.getIntExtra(EXTRA_VIDEO_FPS, 30).coerceIn(15, 60)
         encoderBitrateKbps = intent.getIntExtra(EXTRA_VIDEO_BITRATE_KBPS, 6800).coerceIn(500, 50000)
-        val orientation = intent.getStringExtra(EXTRA_VIDEO_ORIENTATION) ?: "Landscape"
+        val orientation = intent.getStringExtra(EXTRA_VIDEO_ORIENTATION) ?: "Auto"
+        requestedOrientationMode = orientation
         captureBaseWidth = requestedWidth
         captureBaseHeight = requestedHeight
         rtmpServerUrl = intent.getStringExtra(EXTRA_RTMP_SERVER_URL).orEmpty().trim()
         streamKey = intent.getStringExtra(EXTRA_STREAM_KEY).orEmpty().trim()
         publishTarget = intent.getStringExtra(EXTRA_TARGET_NAME).orEmpty().trim()
+        rtmpTargets = parseRtmpTargets(intent.getStringExtra(EXTRA_RTMP_TARGETS_JSON)).ifEmpty {
+            if (rtmpServerUrl.isNotBlank() && streamKey.isNotBlank()) {
+                listOf(RtmpTarget(rtmpServerUrl, streamKey, publishTarget.ifBlank { "RTMP destination" }))
+            } else emptyList()
+        }
+        publishTarget = when (rtmpTargets.size) {
+            0 -> publishTarget
+            1 -> rtmpTargets.first().name
+            else -> "${rtmpTargets.size} destinations"
+        }
         facecamEnabled = intent.getBooleanExtra(EXTRA_FACECAM_ENABLED, false)
         facecamLens = intent.getStringExtra(EXTRA_FACECAM_LENS) ?: "Front"
         facecamShape = intent.getStringExtra(EXTRA_FACECAM_SHAPE) ?: "Circle"
@@ -220,7 +243,7 @@ class ScreenCaptureService : Service() {
         encoderWidth = makeEven(size.first)
         encoderHeight = makeEven(size.second)
 
-        startForegroundCompat(microphoneRequested)
+        startForegroundCompat(microphoneRequested, cameraPrimaryMode)
         publishSnapshot(CaptureStatus.STARTING, "Preparing Android H.264 hardware encoder", "Preparing audio capture")
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -231,15 +254,17 @@ class ScreenCaptureService : Service() {
             intent.getParcelableExtra(EXTRA_RESULT_DATA)
         }
 
-        if (resultCode != Activity.RESULT_OK || resultData == null) {
+        if (!cameraPrimaryMode && (resultCode != Activity.RESULT_OK || resultData == null)) {
             publishError("Missing or invalid screen-capture permission data")
             return
         }
 
         try {
-            val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            mediaProjection = manager.getMediaProjection(resultCode, resultData)
-            mediaProjection?.registerCallback(projectionCallback, null)
+            if (!cameraPrimaryMode) {
+                val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                mediaProjection = manager.getMediaProjection(resultCode, resultData!!)
+                mediaProjection?.registerCallback(projectionCallback, null)
+            }
 
             startRtmpPublisherIfConfigured()
             prepareVideoEncoder()
@@ -269,53 +294,64 @@ class ScreenCaptureService : Service() {
                     size = facecamSize,
                     mirrored = facecamMirrored,
                 ),
+                primaryCamera = cameraPrimaryMode,
                 overlays = preparedOverlays,
             ).also { it.start(); compositorActive = true }
 
-            if (facecamEnabled) {
+            if (facecamEnabled || cameraPrimaryMode) {
                 facecamCamera = FacecamCameraController(this).also { camera ->
                     camera.start(
                         facecamLens,
                         requireNotNull(streamCompositor).cameraInputSurface(),
                         onStarted = {
                             facecamActive = true
-                            publishSnapshot(CaptureStatus.CAPTURING, "Screen + facecam compositor active", currentAudioMessage())
+                            publishSnapshot(
+                                CaptureStatus.CAPTURING,
+                                if (cameraPrimaryMode) "Camera is feeding the live program" else "Screen + facecam compositor active",
+                                currentAudioMessage(),
+                            )
                         },
                         onError = { warning ->
                             facecamActive = false
                             publishMessage = warning
-                            publishSnapshot(CaptureStatus.CAPTURING, "Screen compositor active; facecam unavailable", currentAudioMessage())
+                            publishSnapshot(
+                                if (cameraPrimaryMode) CaptureStatus.ERROR else CaptureStatus.CAPTURING,
+                                if (cameraPrimaryMode) "Camera source unavailable" else "Screen compositor active; facecam unavailable",
+                                currentAudioMessage(),
+                            )
                         },
                     )
                 }
             }
 
-            captureSurface = requireNotNull(streamCompositor).screenInputSurface()
-            virtualDisplay = mediaProjection?.createVirtualDisplay(
-                "UniversalLiveH264Capture",
-                captureInputWidth,
-                captureInputHeight,
-                captureDensityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                captureSurface,
-                null,
-                null,
-            )
+            if (!cameraPrimaryMode) {
+                captureSurface = requireNotNull(streamCompositor).screenInputSurface()
+                virtualDisplay = mediaProjection?.createVirtualDisplay(
+                    "UniversalLiveH264Capture",
+                    captureInputWidth,
+                    captureInputHeight,
+                    captureDensityDpi,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    captureSurface,
+                    null,
+                    null,
+                )
 
-            if (virtualDisplay == null) {
-                publishError("Android could not create the encoder capture display")
-                return
+                if (virtualDisplay == null) {
+                    publishError("Android could not create the encoder capture display")
+                    return
+                }
+                registerDisplayListener()
             }
-
-            registerDisplayListener()
             captureStartedAtEpochMs = System.currentTimeMillis()
             startAudioCapture()
             publishSnapshot(
                 CaptureStatus.CAPTURING,
                 when {
+                    cameraPrimaryMode -> "Camera scene is feeding H.264"
                     facecamEnabled -> "Screen + facecam compositor is feeding H.264"
                     preparedOverlays.isNotEmpty() -> "Screen + overlays compositor is feeding H.264"
-                    else -> "Rotation-aware screen compositor is feeding H.264"
+                    else -> "Orientation-aware screen compositor is feeding H.264"
                 },
                 currentAudioMessage(),
             )
@@ -324,6 +360,24 @@ class ScreenCaptureService : Service() {
         }
     }
 
+
+    private fun parseRtmpTargets(payload: String?): List<RtmpTarget> {
+        if (payload.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(payload)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val serverUrl = item.optString("serverUrl").trim()
+                    val streamKey = item.optString("streamKey").trim()
+                    val name = item.optString("targetName", "Destination").trim().ifBlank { "Destination" }
+                    if (serverUrl.isNotBlank() && streamKey.isNotBlank()) {
+                        add(RtmpTarget(serverUrl, streamKey, name))
+                    }
+                }
+            }.distinctBy { "${it.serverUrl}|${it.streamKey}" }
+        }.getOrElse { emptyList() }
+    }
 
     private fun parseOverlayPayload(payload: String): List<OverlayRenderConfig> {
         if (payload.isBlank()) return emptyList()
@@ -395,17 +449,22 @@ class ScreenCaptureService : Service() {
                             if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
                                 encodedVideoFrames++
                                 framesObserved = encodedVideoFrames
-                                if (output != null && publishStatus == PublishStatus.LIVE) {
-                                    rtmpPublisher?.sendVideo(output, info)
-                                    publishedVideoFrames++
-                                    publishedVideoBytes += info.size.toLong()
+                                if (output != null) {
+                                    val livePublishers = rtmpPublishers.filter {
+                                        rtmpStates[it.key]?.status == RtmpPublisher.Status.LIVE
+                                    }
+                                    livePublishers.forEach { it.publisher.sendVideo(output, info) }
+                                    if (livePublishers.isNotEmpty()) {
+                                        publishedVideoFrames++
+                                        publishedVideoBytes += info.size.toLong()
+                                    }
                                 }
                             }
                         }
                         codec.releaseOutputBuffer(index, false)
                     }
                     index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        rtmpPublisher?.setVideoFormat(codec.outputFormat)
+                        rtmpPublishers.forEach { it.publisher.setVideoFormat(codec.outputFormat) }
                     }
                 }
 
@@ -427,30 +486,71 @@ class ScreenCaptureService : Service() {
     }
 
     private fun startRtmpPublisherIfConfigured() {
-        if (rtmpServerUrl.isBlank() || streamKey.isBlank()) {
+        stopRtmpPublisher(markDisconnected = false)
+        if (rtmpTargets.isEmpty()) {
             publishStatus = PublishStatus.IDLE
             publishMessage = "No active RTMP destination; encoding locally"
+            networkBitrateBps = 0L
             return
         }
-        val endpoint = buildPublishUrl(rtmpServerUrl, streamKey)
+
         publishStatus = PublishStatus.CONNECTING
-        publishMessage = "Connecting to ${publishTarget.ifBlank { "RTMP destination" }}"
-        rtmpPublisher = RtmpPublisher { state ->
-            val wasLive = publishStatus == PublishStatus.LIVE
-            publishStatus = when (state.status) {
-                RtmpPublisher.Status.IDLE -> PublishStatus.IDLE
-                RtmpPublisher.Status.CONNECTING -> PublishStatus.CONNECTING
-                RtmpPublisher.Status.LIVE -> PublishStatus.LIVE
-                RtmpPublisher.Status.RECONNECTING -> PublishStatus.RECONNECTING
-                RtmpPublisher.Status.ERROR -> PublishStatus.ERROR
-                RtmpPublisher.Status.DISCONNECTED -> PublishStatus.DISCONNECTED
+        publishMessage = "Connecting to ${if (rtmpTargets.size == 1) rtmpTargets.first().name else "${rtmpTargets.size} destinations"}"
+
+        rtmpTargets.forEachIndexed { index, target ->
+            val key = "${index}:${target.serverUrl}|${target.streamKey.hashCode()}"
+            lateinit var publisher: RtmpPublisher
+            publisher = RtmpPublisher { state ->
+                val hadAnyLive = rtmpStates.values.any { it.status == RtmpPublisher.Status.LIVE }
+                rtmpStates[key] = state
+                refreshAggregatePublisherState()
+                val hasAnyLive = rtmpStates.values.any { it.status == RtmpPublisher.Status.LIVE }
+                if (!hadAnyLive && hasAnyLive) requestSyncFrame()
+                publishSnapshot(
+                    CaptureStatus.CAPTURING,
+                    if (hasAnyLive) "Platform ingest is receiving the stream" else "H.264 encoding is active",
+                    currentAudioMessage(),
+                )
             }
-            publishMessage = state.message
-            if (state.bitrateBps > 0) networkBitrateBps = state.bitrateBps
-            if (!wasLive && publishStatus == PublishStatus.LIVE) requestSyncFrame()
-            publishSnapshot(CaptureStatus.CAPTURING, if (publishStatus == PublishStatus.LIVE) "Platform ingest is receiving the stream" else "H.264 encoding is active", currentAudioMessage())
+            rtmpStates[key] = RtmpPublisher.State(RtmpPublisher.Status.CONNECTING, "Preparing ${target.name}")
+            rtmpPublishers += ActivePublisher(key, target, publisher)
+            publisher.start(
+                buildPublishUrl(target.serverUrl, target.streamKey),
+                encoderWidth, encoderHeight, encoderFps,
+                microphoneRequested || internalAudioRequested,
+            )
         }
-        rtmpPublisher?.start(endpoint, encoderWidth, encoderHeight, encoderFps, microphoneRequested || internalAudioRequested)
+        refreshAggregatePublisherState()
+    }
+
+    private fun refreshAggregatePublisherState() {
+        val states = rtmpPublishers.mapNotNull { active -> rtmpStates[active.key]?.let { active to it } }
+        if (states.isEmpty()) {
+            publishStatus = if (rtmpTargets.isEmpty()) PublishStatus.IDLE else PublishStatus.CONNECTING
+            networkBitrateBps = 0L
+            return
+        }
+
+        val live = states.count { it.second.status == RtmpPublisher.Status.LIVE }
+        val reconnecting = states.count { it.second.status == RtmpPublisher.Status.RECONNECTING }
+        val connecting = states.count { it.second.status == RtmpPublisher.Status.CONNECTING }
+        val errors = states.count { it.second.status == RtmpPublisher.Status.ERROR || it.second.status == RtmpPublisher.Status.DISCONNECTED }
+        networkBitrateBps = states.sumOf { it.second.bitrateBps.coerceAtLeast(0L) }
+
+        publishStatus = when {
+            live > 0 -> PublishStatus.LIVE
+            reconnecting > 0 -> PublishStatus.RECONNECTING
+            connecting > 0 -> PublishStatus.CONNECTING
+            errors == states.size -> PublishStatus.ERROR
+            else -> PublishStatus.DISCONNECTED
+        }
+        publishMessage = when {
+            live == states.size -> if (live == 1) "Live on ${states.first().first.target.name}" else "Live on all $live destinations"
+            live > 0 -> "Live on $live/${states.size} destinations${if (errors > 0) " • $errors need attention" else ""}"
+            reconnecting > 0 -> "Reconnecting $reconnecting/${states.size} destinations"
+            connecting > 0 -> "Connecting $connecting/${states.size} destinations"
+            else -> states.joinToString(" • ") { "${it.first.target.name}: ${it.second.message}" }.take(220)
+        }
     }
 
     private fun buildPublishUrl(serverUrl: String, key: String): String {
@@ -466,10 +566,14 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun stopRtmpPublisher() {
-        try { rtmpPublisher?.stop() } catch (_: Throwable) {}
-        rtmpPublisher = null
-        if (publishStatus != PublishStatus.ERROR) publishStatus = PublishStatus.DISCONNECTED
+    private fun stopRtmpPublisher(markDisconnected: Boolean = true) {
+        rtmpPublishers.forEach { active ->
+            try { active.publisher.stop() } catch (_: Throwable) {}
+        }
+        rtmpPublishers.clear()
+        rtmpStates.clear()
+        networkBitrateBps = 0L
+        if (markDisconnected && publishStatus != PublishStatus.ERROR) publishStatus = PublishStatus.DISCONNECTED
     }
 
     private fun registerDisplayListener() {
@@ -496,7 +600,7 @@ class ScreenCaptureService : Service() {
         val rawHeight = metrics.heightPixels
         if (rawWidth > 0 && rawHeight > 0) {
             // Preserve the device's real gaming aspect ratio but cap the long edge to the selected
-            // output long edge. The compositor then center-crops to the chosen 16:9/portrait canvas.
+            // output long edge. The compositor then fits the complete device frame inside the selected output canvas without cropping.
             val maxCaptureEdge = maxOf(captureBaseWidth, captureBaseHeight).coerceAtLeast(720)
             val rawLong = maxOf(rawWidth, rawHeight)
             val scale = minOf(1f, maxCaptureEdge.toFloat() / rawLong.toFloat())
@@ -525,21 +629,113 @@ class ScreenCaptureService : Service() {
     }
 
     private fun refreshCaptureForDeviceRotation() {
+        if (rotationRebuildInProgress) return
         val next = resolveCaptureInputSize()
         if (next.first == captureInputWidth && next.second == captureInputHeight) return
         captureInputWidth = makeEven(next.first)
         captureInputHeight = makeEven(next.second)
+
+        val autoOrientation = requestedOrientationMode.equals("auto", ignoreCase = true)
+        val desiredEncoder = if (autoOrientation) {
+            val longEdge = maxOf(captureBaseWidth, captureBaseHeight)
+            val shortEdge = minOf(captureBaseWidth, captureBaseHeight)
+            if (captureInputWidth > captureInputHeight) longEdge to shortEdge else shortEdge to longEdge
+        } else {
+            encoderWidth to encoderHeight
+        }
+
         try {
-            streamCompositor?.updateScreenInputSize(captureInputWidth, captureInputHeight)
-            virtualDisplay?.resize(captureInputWidth, captureInputHeight, captureDensityDpi)
-            requestSyncFrame()
+            if (autoOrientation && (desiredEncoder.first != encoderWidth || desiredEncoder.second != encoderHeight)) {
+                rebuildVideoPipelineForOrientation(desiredEncoder.first, desiredEncoder.second)
+            } else {
+                streamCompositor?.updateScreenInputSize(captureInputWidth, captureInputHeight)
+                virtualDisplay?.resize(captureInputWidth, captureInputHeight, captureDensityDpi)
+                requestSyncFrame()
+            }
             publishSnapshot(
                 CaptureStatus.CAPTURING,
-                "Device rotation synced • input ${captureInputWidth}x${captureInputHeight} → output ${encoderWidth}x${encoderHeight}",
+                "Device orientation synced • ${captureInputWidth}x${captureInputHeight} → ${encoderWidth}x${encoderHeight}",
                 currentAudioMessage(),
             )
         } catch (t: Throwable) {
-            publishMessage = "Rotation sync warning: ${t.message ?: t::class.java.simpleName}"
+            publishMessage = "Orientation sync warning: ${t.message ?: t::class.java.simpleName}"
+            publishSnapshot(CaptureStatus.CAPTURING, "Streaming continues while orientation settles", currentAudioMessage())
+        }
+    }
+
+    private fun rebuildVideoPipelineForOrientation(nextWidth: Int, nextHeight: Int) {
+        if (rotationRebuildInProgress || mediaProjection == null) return
+        rotationRebuildInProgress = true
+        try {
+            publishStatus = PublishStatus.RECONNECTING
+            publishMessage = "Adapting stream to device orientation"
+
+            virtualDisplay?.release()
+            virtualDisplay = null
+            captureSurface = null
+            try { facecamCamera?.stop() } catch (_: Throwable) {}
+            facecamCamera = null
+            facecamActive = false
+            try { streamCompositor?.release() } catch (_: Throwable) {}
+            streamCompositor = null
+            compositorActive = false
+            stopRtmpPublisher()
+            stopVideoEncoder()
+
+            encoderWidth = makeEven(nextWidth)
+            encoderHeight = makeEven(nextHeight)
+            startRtmpPublisherIfConfigured()
+            prepareVideoEncoder()
+
+            val encoderSurface = requireNotNull(encoderInputSurface) { "Encoder input surface was not recreated" }
+            val preparedOverlays = parseOverlayPayload(overlayPayload)
+            streamCompositor = StreamCompositor(
+                encoderSurface = encoderSurface,
+                width = encoderWidth,
+                height = encoderHeight,
+                initialScreenWidth = captureInputWidth,
+                initialScreenHeight = captureInputHeight,
+                facecam = FacecamRenderConfig(
+                    enabled = facecamEnabled,
+                    shape = facecamShape,
+                    x = facecamX,
+                    y = facecamY,
+                    size = facecamSize,
+                    mirrored = facecamMirrored,
+                ),
+                primaryCamera = cameraPrimaryMode,
+                overlays = preparedOverlays,
+            ).also { it.start(); compositorActive = true }
+
+            if (facecamEnabled) {
+                facecamCamera = FacecamCameraController(this).also { camera ->
+                    camera.start(
+                        facecamLens,
+                        requireNotNull(streamCompositor).cameraInputSurface(),
+                        onStarted = { facecamActive = true },
+                        onError = { warning ->
+                            facecamActive = false
+                            publishMessage = warning
+                        },
+                    )
+                }
+            }
+
+            captureSurface = requireNotNull(streamCompositor).screenInputSurface()
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "UniversalLiveH264Capture",
+                captureInputWidth,
+                captureInputHeight,
+                captureDensityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                captureSurface,
+                null,
+                null,
+            )
+            check(virtualDisplay != null) { "Android could not recreate the capture display" }
+            requestSyncFrame()
+        } finally {
+            rotationRebuildInProgress = false
         }
     }
 
@@ -625,8 +821,11 @@ class ScreenCaptureService : Service() {
             onEncoded = { buffer, info ->
                 encodedAudioFrames++
                 encodedAudioBytes += info.size.toLong()
-                if (publishStatus == PublishStatus.LIVE) {
-                    rtmpPublisher?.sendAudio(buffer, info)
+                val livePublishers = rtmpPublishers.filter {
+                    rtmpStates[it.key]?.status == RtmpPublisher.Status.LIVE
+                }
+                livePublishers.forEach { it.publisher.sendAudio(buffer, info) }
+                if (livePublishers.isNotEmpty()) {
                     publishedAudioFrames++
                     publishedAudioBytes += info.size.toLong()
                 }
@@ -773,10 +972,14 @@ class ScreenCaptureService : Service() {
         return parts.joinToString(" • ")
     }
 
-    private fun startForegroundCompat(includeMicrophone: Boolean) {
-        val notification = buildLiveNotification("STARTING", "Preparing screen capture")
+    private fun startForegroundCompat(includeMicrophone: Boolean, includeCamera: Boolean) {
+        val notification = buildLiveNotification("STARTING", if (includeCamera) "Preparing camera live" else "Preparing screen capture")
         if (Build.VERSION.SDK_INT >= 29) {
-            var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            var serviceType = if (includeCamera && Build.VERSION.SDK_INT >= 30) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            }
             if (includeMicrophone && Build.VERSION.SDK_INT >= 30) {
                 serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             }
@@ -852,7 +1055,9 @@ class ScreenCaptureService : Service() {
             metricsEncodedFrames = encodedVideoFrames
             metricsPublishedFrames = publishedVideoFrames
         }
-        val rtmpMetrics = rtmpPublisher?.metricsSnapshot()
+        val publisherMetrics = rtmpPublishers.map { it.publisher.metricsSnapshot() }
+        val rtmpMetrics = publisherMetrics.firstOrNull()
+        val totalReconnectCount = publisherMetrics.sumOf { it.reconnectCount }
         val snapshot = CaptureSnapshot(
             status = status,
             message = message,
@@ -896,7 +1101,7 @@ class ScreenCaptureService : Service() {
             keyframeIntervalMs = rtmpMetrics?.keyframeIntervalMs,
             videoPtsMonotonic = rtmpMetrics?.videoPtsMonotonic,
             audioPtsMonotonic = rtmpMetrics?.audioPtsMonotonic,
-            reconnectCount = rtmpMetrics?.reconnectCount ?: 0,
+            reconnectCount = totalReconnectCount,
             publisherInstanceId = publisherInstanceId,
             facecamActive = facecamActive,
             compositorActive = compositorActive,
@@ -999,6 +1204,7 @@ class ScreenCaptureService : Service() {
         const val EXTRA_RTMP_SERVER_URL = "rtmp_server_url"
         const val EXTRA_STREAM_KEY = "stream_key"
         const val EXTRA_TARGET_NAME = "target_name"
+        const val EXTRA_RTMP_TARGETS_JSON = "rtmp_targets_json"
         const val EXTRA_FACECAM_ENABLED = "facecam_enabled"
         const val EXTRA_FACECAM_LENS = "facecam_lens"
         const val EXTRA_FACECAM_SHAPE = "facecam_shape"
@@ -1009,6 +1215,7 @@ class ScreenCaptureService : Service() {
         const val EXTRA_SCENE_NAME = "scene_name"
         const val EXTRA_OVERLAY_PAYLOAD = "overlay_payload"
         const val EXTRA_CAPTURE_MODE = "capture_mode"
+        const val EXTRA_CAMERA_PRIMARY = "camera_primary"
         private const val CHANNEL_ID = "screen_capture"
         private const val NOTIFICATION_ID = 4106
         private const val SAMPLE_RATE = 48_000

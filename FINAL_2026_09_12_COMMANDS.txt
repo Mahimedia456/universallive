@@ -1,0 +1,133 @@
+UNIVERSAL LIVE — FINAL MOBILE + BACKEND + ADMIN COMMANDS
+=======================================================
+
+1) MERGE
+--------
+Extract the final source/patch into:
+E:\UniversalLive
+
+Keep your real secrets in backend\.env / Vercel environment variables.
+Do NOT copy secrets into mobile/admin source.
+
+2) DATABASE — MOBILE FINAL SQL (only if not already run)
+-------------------------------------------------------
+Supabase SQL Editor:
+backend\sql\final\0620_mobile_backend_stabilization.sql
+
+Expected:
+service_can_select_onboarding = true
+service_can_insert_onboarding = true
+service_can_update_onboarding = true
+users_without_onboarding = 0
+
+3) DATABASE — ADMIN RUNTIME HARDENING
+-------------------------------------
+Run:
+backend\sql\final\0630_admin_runtime_hardening.sql
+
+Expected:
+service_can_read_admins = true
+service_can_update_admins = true
+anon_can_read_admins = false
+authenticated_can_read_admins = false
+
+If no production admin exists, edit BOTH values inside:
+backend\sql\final\0631_admin_super_admin_seed_TEMPLATE.sql
+then run it ONCE in Supabase SQL Editor.
+
+DO NOT run old backend\sql\0024_admin_console.sql against the current custom-admin-auth database.
+
+4) BACKEND ENV / VERCEL ENV
+---------------------------
+Required/important:
+NODE_ENV=production
+SUPABASE_URL=...
+SUPABASE_SECRET_KEY=...
+JWT_ACCESS_SECRET=<64+ random chars>
+ADMIN_JWT_SECRET=<64+ random chars recommended>
+CORS_ORIGINS=https://universallive.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+
+ADMIN_JWT_SECRET now falls back to JWT_ACCESS_SECRET, but a dedicated production secret is recommended.
+
+5) BACKEND LOCAL
+----------------
+cd E:\UniversalLive\backend
+npm ci
+npm run build
+npm run dev
+
+6) ADMIN LOCAL
+--------------
+Make sure apps\admin\.env contains:
+VITE_API_BASE_URL=https://universallive.vercel.app/api/v1
+
+Then:
+cd E:\UniversalLive\apps\admin
+npm ci
+npm run build
+npm run dev
+
+7) VERIFY DEPLOYED ADMIN LOGIN + CORS
+-------------------------------------
+cd E:\UniversalLive
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
+.\tools\verify-admin-deployment.ps1 `
+  -BaseUrl "https://universallive.vercel.app/api/v1" `
+  -Email "YOUR_ADMIN_EMAIL" `
+  -Password "YOUR_ADMIN_PASSWORD"
+
+Expected:
+PASS: CORS preflight
+PASS: admin login
+PASS: deployed admin auth + CORS verified
+
+8) ANDROID DEBUG BUILD
+----------------------
+cd E:\UniversalLive
+.\gradlew.bat :androidApp:processDebugGoogleServices :composeApp:compileKotlinMetadata :androidApp:compileDebugKotlin :androidApp:assembleDebug
+
+Expected APK normally:
+E:\UniversalLive\androidApp\build\outputs\apk\debug\androidApp-debug.apk
+
+9) FULL ONE-COMMAND FINAL VERIFY + DEBUG APK COPY
+-------------------------------------------------
+cd E:\UniversalLive
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
+.\tools\final-mobile-admin-build-verify.ps1
+
+Expected final APK:
+E:\UniversalLive\artifacts\UniversalLive-final-debug.apk
+
+Expected final line:
+PASS: Universal Live final mobile + backend + admin verification completed
+
+10) REQUIRED ON-DEVICE STREAM TEST
+----------------------------------
+A. Splash
+- exactly one branded splash flow; no second old-logo black screen.
+
+B. Screen/game RTMP
+- portrait source -> portrait full-frame output
+- landscape game/source -> landscape full-frame output
+- no center zoom/crop
+- no left/right reversed main screen
+- app UI remains portrait locked
+
+C. Camera primary live
+- Go Live -> Camera source
+- camera permission -> camera publishes without MediaProjection prompt
+- viewer output is not mirrored
+
+D. Multiple destinations
+- select 2+ enabled destinations within plan limit
+- preflight lists all selected connection IDs
+- stream publishes concurrently
+- Live status shows X/Y destinations
+- failure of one destination does not automatically stop healthy publishers
+
+E. Active/recovery
+- rotate captured phone/game while streaming
+- encoder/output follows source orientation
+- stream reconnect/adaptation settles without stale portrait/landscape crop

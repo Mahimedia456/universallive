@@ -66,6 +66,7 @@ import com.universallive.app.permissions.PermissionGrantState
 import com.universallive.app.permissions.PermissionSetupController
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.CaptureMode
+import com.universallive.app.streaming.capture.VideoSourceMode
 import com.universallive.app.streaming.capture.PublishStatus
 import com.universallive.app.streaming.facecam.FacecamState
 import com.universallive.app.streaming.model.StreamFps
@@ -403,7 +404,7 @@ fun Phase13GoLiveOverviewScreen(
     val cfg = streamState.config
 
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
+        phase = "GO LIVE SETUP",
         title = "Go Live Setup",
         subtitle = "Configure your stream and get ready to go live.",
         step = 1,
@@ -445,9 +446,9 @@ fun Phase13DestinationSelectionScreen(
     val ready = state.connections.filter { it.isEnabled && it.readyToPublish }
 
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
-        title = "Select Destination",
-        subtitle = "Choose the connected platform that will receive this device broadcast.",
+        phase = "GO LIVE SETUP",
+        title = "Select Destinations",
+        subtitle = "Choose one or more connected platforms. Your plan limit is enforced before preflight.",
         step = 2,
         totalSteps = 6,
         onBack = onBack,
@@ -464,28 +465,30 @@ fun Phase13DestinationSelectionScreen(
             ready.forEachIndexed { index, connection ->
                 DestinationRow(
                     connection = connection,
-                    selected = state.selectedLiveConnectionId == connection.id,
-                    onSelect = { state.chooseLiveConnection(connection.id) },
+                    selected = connection.id in state.selectedLiveConnectionIds,
+                    onSelect = { state.toggleLiveConnection(connection.id) },
                 )
                 if (index != ready.lastIndex) Spacer(Modifier.height(9.dp))
             }
 
             Spacer(Modifier.height(14.dp))
             LockedCard {
-                Text("Multi-platform backend boundary", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                val maxDestinations = (state.membership?.maxSimultaneousDestinations ?: 1).coerceAtLeast(1)
+                Text("Multi-destination live", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Spacer(Modifier.height(5.dp))
                 Text(
-                    "The current Android publisher sends one direct RTMP output. Multi-platform relay and platform OAuth will plug into this screen in the backend API phase instead of showing fake LIVE destinations today.",
-                    color = AppTextMuted,
+                    "${state.selectedLiveConnectionIds.size} selected • plan limit $maxDestinations. Universal Live publishes the same encoded program to each validated RTMP destination.",
+                    color = AppTextSecondary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                 )
             }
+            state.error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = AppWarning, fontSize = 11.sp) }
             Spacer(Modifier.height(16.dp))
             UlPrimaryButton(
                 "Next",
                 onClick = { onRoute(AppRoute.StreamInfo) },
-                enabled = state.selectedLiveConnectionId != null,
+                enabled = state.selectedLiveConnectionIds.isNotEmpty(),
             )
         }
     }
@@ -498,7 +501,7 @@ fun Phase13StreamInfoScreen(
     onBack: () -> Unit,
 ) {
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
+        phase = "GO LIVE SETUP",
         title = "Stream Info",
         subtitle = "Add the details that identify your live broadcast.",
         step = 3,
@@ -551,7 +554,7 @@ fun Phase13StreamSettingsScreen(
     val allow1080 = maxResolution.contains("1080") || maxResolution.contains("1440") || maxResolution.contains("4k")
 
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
+        phase = "GO LIVE SETUP",
         title = "Stream Settings",
         subtitle = "Optimize quality before the encoder starts.",
         step = 4,
@@ -629,6 +632,7 @@ fun Phase13StreamSettingsScreen(
 @Composable
 fun Phase13AudioCameraScreen(
     streamState: StreamConfigState,
+    captureController: CaptureController,
     facecamState: FacecamState,
     permissions: PermissionSetupController,
     onRoute: (AppRoute) -> Unit,
@@ -639,34 +643,62 @@ fun Phase13AudioCameraScreen(
     val permissionSnapshot = permissions.snapshot
 
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
+        phase = "GO LIVE SETUP",
         title = "Audio & Camera",
         subtitle = "Choose the sources that will be included in your stream.",
         step = 5,
         totalSteps = 6,
         onBack = onBack,
     ) {
+        Text("Main video source", color = AppText, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(VideoSourceMode.SCREEN, VideoSourceMode.CAMERA).forEach { source ->
+                FilterChip(
+                    selected = captureController.requestedVideoSource == source,
+                    onClick = {
+                        captureController.setVideoSource(source)
+                        if (source == VideoSourceMode.CAMERA) streamState.setInternalAudioEnabled(false)
+                    },
+                    label = { Text(source.label) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) {
+            LockedCard {
+                Text("Camera Live", color = AppPrimary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(5.dp))
+                Text("The selected front or back camera becomes the full broadcast scene. Device playback audio is disabled; microphone audio remains available.", color = AppTextSecondary, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         SettingToggle(
             "Microphone",
             if (permissionSnapshot.microphone == PermissionGrantState.GRANTED) "Microphone permission ready" else "Permission is required when enabled",
             cfg.microphoneEnabled,
         ) { streamState.setMicrophoneEnabled(it) }
         Spacer(Modifier.height(9.dp))
-        SettingToggle("Game / device audio", "Capture supported app playback audio", cfg.internalAudioEnabled) {
-            streamState.setInternalAudioEnabled(it)
+        SettingToggle(
+            "Game / device audio",
+            if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) "Available for screen/game capture" else "Capture supported app playback audio",
+            cfg.internalAudioEnabled && captureController.requestedVideoSource == VideoSourceMode.SCREEN,
+        ) {
+            if (captureController.requestedVideoSource == VideoSourceMode.SCREEN) streamState.setInternalAudioEnabled(it)
         }
         Spacer(Modifier.height(9.dp))
         SettingToggle(
-            "Face camera",
-            if (permissionSnapshot.camera == PermissionGrantState.GRANTED) "Camera permission ready" else "Optional camera permission required",
-            facecamState.config.enabled,
-        ) { facecamState.setEnabled(it) }
+            if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) "Camera lens" else "Face camera",
+            if (permissionSnapshot.camera == PermissionGrantState.GRANTED) "Camera permission ready" else "Camera permission required",
+            if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) true else facecamState.config.enabled,
+        ) { if (captureController.requestedVideoSource == VideoSourceMode.SCREEN) facecamState.setEnabled(it) }
 
         if (cfg.microphoneEnabled && permissionSnapshot.microphone != PermissionGrantState.GRANTED) {
             Spacer(Modifier.height(11.dp))
             UlSecondaryButton("Grant Microphone Permission", onClick = permissions::requestMicrophone)
         }
-        if (facecamState.config.enabled && permissionSnapshot.camera != PermissionGrantState.GRANTED) {
+        if ((facecamState.config.enabled || captureController.requestedVideoSource == VideoSourceMode.CAMERA) && permissionSnapshot.camera != PermissionGrantState.GRANTED) {
             Spacer(Modifier.height(9.dp))
             UlSecondaryButton("Grant Camera Permission", onClick = permissions::requestCamera)
         }
@@ -680,6 +712,7 @@ fun Phase13AudioCameraScreen(
 fun Phase13SetupReviewScreen(
     state: MobileIntegrationState,
     streamState: StreamConfigState,
+    captureController: CaptureController,
     facecamState: FacecamState,
     permissions: PermissionSetupController,
     onStartPreflight: () -> Unit,
@@ -688,18 +721,19 @@ fun Phase13SetupReviewScreen(
     val connection = state.selectedLiveConnectionId?.let { id -> state.connections.firstOrNull { it.id == id } }
     val cfg = streamState.config
     val micOk = !cfg.microphoneEnabled || permissions.snapshot.microphone == PermissionGrantState.GRANTED
-    val cameraOk = !facecamState.config.enabled || permissions.snapshot.camera == PermissionGrantState.GRANTED
+    val cameraRequired = facecamState.config.enabled || captureController.requestedVideoSource == VideoSourceMode.CAMERA
+    val cameraOk = !cameraRequired || permissions.snapshot.camera == PermissionGrantState.GRANTED
     val ready = connection?.readyToPublish == true && state.liveTitle.isNotBlank() && micOk && cameraOk
 
     LockedLivePage(
-        phase = "Phase 13 • Go Live Setup",
+        phase = "GO LIVE SETUP",
         title = "Ready to Go Live?",
         subtitle = "Review the setup before Universal Live runs real preflight checks.",
         step = 6,
         totalSteps = 6,
         onBack = onBack,
     ) {
-        CheckRow("Destination", connection?.displayName ?: "No destination selected", connection?.readyToPublish == true, warning = connection == null)
+        CheckRow("Destinations", if (state.selectedLiveConnectionIds.size > 1) "${state.selectedLiveConnectionIds.size} destinations selected" else connection?.displayName ?: "No destination selected", state.selectedLiveConnectionIds.isNotEmpty() && connection?.readyToPublish == true, warning = connection == null)
         Spacer(Modifier.height(8.dp))
         CheckRow("Stream info", "${state.liveCategory} • ${state.livePrivacy}", state.liveTitle.isNotBlank())
         Spacer(Modifier.height(8.dp))
@@ -707,9 +741,9 @@ fun Phase13SetupReviewScreen(
         Spacer(Modifier.height(8.dp))
         CheckRow("Microphone", if (cfg.microphoneEnabled) "Enabled" else "Disabled", micOk, warning = !micOk)
         Spacer(Modifier.height(8.dp))
-        CheckRow("Camera", if (facecamState.config.enabled) "Facecam enabled" else "Facecam off", cameraOk, warning = !cameraOk)
+        CheckRow("Camera", if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) "Primary camera source" else if (facecamState.config.enabled) "Facecam enabled" else "Facecam off", cameraOk, warning = !cameraOk)
         Spacer(Modifier.height(8.dp))
-        CheckRow("Screen capture", "Android system consent is requested only when the broadcast starts", permissions.snapshot.screenCaptureEducationComplete, warning = !permissions.snapshot.screenCaptureEducationComplete)
+        if (captureController.requestedVideoSource == VideoSourceMode.SCREEN) CheckRow("Screen capture", "Android system consent is requested only when the broadcast starts", permissions.snapshot.screenCaptureEducationComplete, warning = !permissions.snapshot.screenCaptureEducationComplete) else CheckRow("Video source", "Camera scene selected", true)
 
         Spacer(Modifier.height(18.dp))
         UlPrimaryButton("Start Preflight", onClick = onStartPreflight, enabled = ready)
@@ -726,7 +760,7 @@ fun Phase14PreflightStartScreen(
     onBack: () -> Unit,
 ) {
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
+        phase = "STREAM PREFLIGHT",
         title = "Stream Preflight",
         subtitle = "We'll check the real publish route, device setup and selected destination before going live.",
         onBack = onBack,
@@ -781,7 +815,7 @@ fun Phase14NetworkCheckScreen(
     LaunchedEffect(Unit) { runCheck() }
 
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
+        phase = "STREAM PREFLIGHT",
         title = "Checking Connection",
         subtitle = "Verify that the backend can resolve a valid publish route for your selected destination.",
         onBack = onBack,
@@ -816,6 +850,7 @@ fun Phase14NetworkCheckScreen(
 fun Phase14DeviceCheckScreen(
     state: MobileIntegrationState,
     streamState: StreamConfigState,
+    captureController: CaptureController,
     facecamState: FacecamState,
     permissions: PermissionSetupController,
     onRoute: (AppRoute) -> Unit,
@@ -826,23 +861,25 @@ fun Phase14DeviceCheckScreen(
     val cfg = streamState.config
     val snapshot = permissions.snapshot
     val micOk = !cfg.microphoneEnabled || snapshot.microphone == PermissionGrantState.GRANTED
-    val camOk = !facecamState.config.enabled || snapshot.camera == PermissionGrantState.GRANTED
-    val screenEducation = snapshot.screenCaptureEducationComplete
+    val cameraRequired = facecamState.config.enabled || captureController.requestedVideoSource == VideoSourceMode.CAMERA
+    val camOk = !cameraRequired || snapshot.camera == PermissionGrantState.GRANTED
+    val screenRequired = captureController.requestedVideoSource == VideoSourceMode.SCREEN
+    val screenEducation = !screenRequired || snapshot.screenCaptureEducationComplete
     val allOk = micOk && camOk && screenEducation
 
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
+        phase = "STREAM PREFLIGHT",
         title = "Checking Devices",
         subtitle = "Verify the actual permissions required by the stream configuration.",
         onBack = onBack,
     ) {
         CheckRow("Microphone", if (cfg.microphoneEnabled) "Required for this stream" else "Not requested", micOk, warning = !micOk)
         Spacer(Modifier.height(8.dp))
-        CheckRow("Device audio", if (cfg.internalAudioEnabled) "Requested when Android playback capture supports the current app" else "Disabled", true)
+        CheckRow("Device audio", if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) "Disabled for camera-only live" else if (cfg.internalAudioEnabled) "Requested when Android playback capture supports the current app" else "Disabled", true)
         Spacer(Modifier.height(8.dp))
-        CheckRow("Camera", if (facecamState.config.enabled) "Facecam enabled" else "Facecam is off", camOk, warning = !camOk)
+        CheckRow("Camera", if (captureController.requestedVideoSource == VideoSourceMode.CAMERA) "Primary camera source" else if (facecamState.config.enabled) "Facecam enabled" else "Facecam is off", camOk, warning = !camOk)
         Spacer(Modifier.height(8.dp))
-        CheckRow("Screen capture", "System MediaProjection consent will appear when you tap Go Live", screenEducation, warning = !screenEducation)
+        CheckRow("Screen capture", if (screenRequired) "System MediaProjection consent will appear when you tap Go Live" else "Not required for camera live", screenEducation, warning = !screenEducation)
 
         if (!micOk) {
             Spacer(Modifier.height(10.dp))
@@ -852,7 +889,7 @@ fun Phase14DeviceCheckScreen(
             Spacer(Modifier.height(9.dp))
             UlSecondaryButton("Allow Camera", onClick = permissions::requestCamera)
         }
-        if (!screenEducation) {
+        if (screenRequired && !screenEducation) {
             Spacer(Modifier.height(9.dp))
             UlSecondaryButton(
                 "Acknowledge Screen Capture",
@@ -875,13 +912,14 @@ fun Phase14DestinationCheckScreen(
     onBack: () -> Unit,
 ) {
     val selected = state.selectedLiveConnectionId?.let { id -> state.connections.firstOrNull { it.id == id } }
-    val configReady = state.preparedPublishConfig != null
-    val ok = selected?.readyToPublish == true && configReady
+    val selectedIds = state.selectedLiveConnectionIds
+    val configReady = state.preparedPublishConfigs.size == selectedIds.size && selectedIds.isNotEmpty()
+    val ok = selectedIds.isNotEmpty() && selectedIds.all { id -> state.connections.firstOrNull { it.id == id }?.readyToPublish == true } && configReady
 
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
-        title = "Testing Destination",
-        subtitle = "Confirm the exact destination that the native publisher will use.",
+        phase = "STREAM PREFLIGHT",
+        title = "Testing Destinations",
+        subtitle = "Confirm every selected publish route before the native publisher starts.",
         onBack = onBack,
     ) {
         if (selected != null) {
@@ -913,6 +951,7 @@ fun Phase14DestinationCheckScreen(
 fun Phase14PreflightSuccessScreen(
     state: MobileIntegrationState,
     streamState: StreamConfigState,
+    captureController: CaptureController,
     permissions: PermissionSetupController,
     onGoLive: () -> Unit,
     onBack: () -> Unit,
@@ -920,12 +959,12 @@ fun Phase14PreflightSuccessScreen(
     val connection = state.selectedLiveConnectionId?.let { id -> state.connections.firstOrNull { it.id == id } }
     val cfg = streamState.config
     val ready = connection?.readyToPublish == true &&
-        state.preparedPublishConfig != null &&
+        state.preparedPublishConfigs.isNotEmpty() &&
         state.streamPreflight?.ready == true &&
-        permissions.snapshot.screenCaptureEducationComplete
+        (captureController.requestedVideoSource == VideoSourceMode.CAMERA || permissions.snapshot.screenCaptureEducationComplete)
 
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
+        phase = "STREAM PREFLIGHT",
         title = "Preflight Complete!",
         subtitle = "Everything required by the current native streaming path is ready.",
         onBack = onBack,
@@ -971,16 +1010,17 @@ fun Phase14GoingLiveScreen(
     var starting by remember { mutableStateOf(false) }
     var startAttempt by remember { mutableIntStateOf(0) }
     val publishConfig = state.preparedPublishConfig
+    val publishConfigs = state.preparedPublishConfigs
 
-    fun canStart() = publishConfig != null && state.selectedLiveConnectionId != null
+    fun canStart() = publishConfigs.isNotEmpty() && state.selectedLiveConnectionIds.isNotEmpty()
 
     LaunchedEffect(startAttempt) {
         if (canStart()) {
             starting = true
-            val id = state.selectedLiveConnectionId
-            if (id != null && state.beginBroadcast(state.liveTitle, listOf(id), state.selectedScene?.id)) {
+            val ids = state.selectedLiveConnectionIds.toList()
+            if (ids.isNotEmpty() && state.beginBroadcast(state.liveTitle, ids, state.selectedScene?.id)) {
                 prepareLockedCapture(
-                    publishConfig = publishConfig!!,
+                    publishConfigs = publishConfigs,
                     streamState = streamState,
                     captureController = captureController,
                     facecamState = facecamState,
@@ -996,7 +1036,7 @@ fun Phase14GoingLiveScreen(
     }
 
     LockedLivePage(
-        phase = "Phase 14 • Stream Preflight",
+        phase = "STREAM PREFLIGHT",
         title = if (starting) "Going Live..." else if (state.error == null) "Preparing Broadcast" else "Could Not Start",
         subtitle = "Creating the backend session and handing the real RTMP publish configuration to Android.",
         onBack = if (starting) null else onBack,
@@ -1078,7 +1118,7 @@ fun Phase15ActiveLiveScreen(
     }
 
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Live Control",
         subtitle = "Your broadcast remains the priority until the stream ends.",
     ) {
@@ -1202,7 +1242,7 @@ fun Phase15LiveStatsScreen(
     val encodedMb = snap.encodedVideoBytes / (1024f * 1024f)
 
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Live Stats",
         subtitle = "Real encoder and publisher telemetry from this device.",
         onBack = onBack,
@@ -1248,7 +1288,7 @@ fun Phase15LiveStatsScreen(
 @Composable
 fun Phase15LiveChatScreen(onBack: () -> Unit) {
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Live Chat",
         subtitle = "Platform chat lives behind platform-specific APIs and is not faked in the current backend.",
         onBack = onBack,
@@ -1280,7 +1320,7 @@ fun Phase15LiveControlsScreen(
     var adaptive by remember { mutableStateOf(captureController.adaptiveBitrateEnabled) }
 
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Live Controls",
         subtitle = "Safe controls that can be changed without rebuilding the active encoder session.",
         onBack = onBack,
@@ -1327,7 +1367,7 @@ fun Phase15StreamHealthScreen(
     val healthLabel = if (good) "Excellent" else if (snap.publishStatus == PublishStatus.RECONNECTING) "Recovering" else "Needs attention"
 
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Stream Health",
         subtitle = "Live health is calculated from actual publisher and encoder state.",
         onBack = onBack,
@@ -1370,7 +1410,7 @@ fun Phase15LiveDestinationsScreen(
     val activeId = state.selectedLiveConnectionId
 
     LockedLivePage(
-        phase = "Phase 15 • Active Live",
+        phase = "LIVE CONTROL ROOM",
         title = "Live Destinations",
         subtitle = "See which saved destination is receiving the current native publish session.",
         onBack = onBack,
@@ -1417,7 +1457,7 @@ fun Phase16EndStreamConfirmScreen(
     onCancel: () -> Unit,
 ) {
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "End Stream?",
         subtitle = "End the native RTMP publisher and close the backend broadcast session.",
         onBack = onCancel,
@@ -1458,7 +1498,7 @@ fun Phase16EndingScreen(
     }
 
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "Stream Ending...",
         subtitle = "Stopping the publisher and finalizing the backend session.",
     ) {
@@ -1483,7 +1523,7 @@ fun Phase16RecoveryHubScreen(
     val snap = captureController.snapshot
 
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "Connection Lost",
         subtitle = "Universal Live keeps the broadcast state visible while the publisher recovers.",
         onBack = onReturn,
@@ -1534,13 +1574,15 @@ fun Phase16ReconnectingScreen(
             return@LaunchedEffect
         }
         if (!captureController.snapshot.isActive) {
-            val config = state.preparedPublishConfig
-            if (config == null) {
+            val configs = state.preparedPublishConfigs.ifEmpty {
+                state.preparedPublishConfig?.let { listOf(it) } ?: emptyList()
+            }
+            if (configs.isEmpty()) {
                 onFailed()
                 return@LaunchedEffect
             }
             prepareLockedCapture(
-                publishConfig = config,
+                publishConfigs = configs,
                 streamState = streamState,
                 captureController = captureController,
                 facecamState = facecamState,
@@ -1579,7 +1621,7 @@ fun Phase16ReconnectingScreen(
     }
 
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "Reconnecting...",
         subtitle = "The native RTMP publisher is being given time to restore its ingest connection.",
         onBack = onCancel,
@@ -1608,7 +1650,7 @@ fun Phase16RecoveredScreen(
     onStats: () -> Unit,
 ) {
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "Stream Recovered",
         subtitle = "The publisher is back online.",
     ) {
@@ -1636,7 +1678,7 @@ fun Phase16RecoveryFailedScreen(
     onEnd: () -> Unit,
 ) {
     LockedLivePage(
-        phase = "Phase 16 • Disconnect / Recovery",
+        phase = "STREAM RECOVERY",
         title = "Recovery Failed",
         subtitle = "The publisher did not return to LIVE within the recovery window.",
     ) {
@@ -1702,7 +1744,7 @@ private fun formatElapsed(totalSeconds: Int): String {
 }
 
 private fun prepareLockedCapture(
-    publishConfig: PublishConfig,
+    publishConfigs: List<PublishConfig>,
     streamState: StreamConfigState,
     captureController: CaptureController,
     facecamState: FacecamState,
@@ -1710,8 +1752,7 @@ private fun prepareLockedCapture(
     sceneState: SceneState,
 ) {
     val config = streamState.config
-    captureController.setCaptureMode(CaptureMode.ENTIRE_DEVICE)
-    captureController.configureAudio(config.microphoneEnabled, config.internalAudioEnabled)
+    captureController.configureAudio(config.microphoneEnabled, config.internalAudioEnabled && captureController.requestedVideoSource == VideoSourceMode.SCREEN)
     captureController.configureVideo(
         width = config.resolution.width,
         height = config.resolution.height,
@@ -1719,10 +1760,14 @@ private fun prepareLockedCapture(
         bitrateKbps = config.bitrateKbps,
         orientation = config.orientation.label,
     )
-    captureController.configurePublish(
-        serverUrl = publishConfig.serverUrl,
-        streamKey = publishConfig.streamKey,
-        targetName = publishConfig.displayName,
+    captureController.configurePublishTargets(
+        publishConfigs.map { cfg ->
+            com.universallive.app.streaming.capture.PublishTargetConfig(
+                serverUrl = cfg.serverUrl,
+                streamKey = cfg.streamKey,
+                targetName = cfg.displayName,
+            )
+        }
     )
     captureController.configureFacecam(
         enabled = facecamState.config.enabled,

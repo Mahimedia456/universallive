@@ -84,7 +84,7 @@ fun ConnectedGoLiveBackendPanel(
     val selected = state.selectedConnection
 
     UlCard {
-        Text("BACKEND SESSION", color = AppPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("BROADCAST SESSION", color = AppPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(5.dp))
         Text(
             state.activeBroadcast?.let { "Session ${it.status.uppercase()}" } ?: "Ready to create live session",
@@ -104,7 +104,7 @@ fun ConnectedGoLiveBackendPanel(
 
     if (state.activeBroadcast == null) {
         UlPrimaryButton(
-            "Prepare Backend Session",
+            "Prepare Broadcast",
             onClick = {
                 scope.launch {
                     val ids = listOfNotNull(selected?.id)
@@ -128,7 +128,7 @@ fun ConnectedGoLiveBackendPanel(
             ),
             shape = RoundedCornerShape(16.dp),
         ) {
-            Text("End Backend Session", fontWeight = FontWeight.Bold)
+            Text("End Broadcast", fontWeight = FontWeight.Bold)
         }
 
         LaunchedEffect(state.activeBroadcast?.id) {
@@ -156,7 +156,7 @@ fun ConnectedNotificationsScreen(
 
     com.universallive.app.features.batch6.SettingsPage(
         "Notifications",
-        "Account and broadcast notifications from Universal Live backend.",
+        "Account, destination and broadcast notifications.",
         onBack,
     ) {
         if (state.notifications.isEmpty() && !state.accountLoading) {

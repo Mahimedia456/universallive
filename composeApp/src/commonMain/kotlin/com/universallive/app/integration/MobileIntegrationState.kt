@@ -399,7 +399,11 @@ class MobileIntegrationState(
     var liveCategory: String by mutableStateOf("Gaming")
     var selectedLiveConnectionId: String? by mutableStateOf(null)
         private set
+    var selectedLiveConnectionIds: Set<String> by mutableStateOf(emptySet())
+        private set
     var preparedPublishConfig: PublishConfig? by mutableStateOf(null)
+        private set
+    var preparedPublishConfigs: List<PublishConfig> by mutableStateOf(emptyList())
         private set
     var streamPreflight: StreamPreflightResult? by mutableStateOf(null)
         private set
@@ -429,8 +433,32 @@ class MobileIntegrationState(
     fun chooseLiveConnection(id: String) {
         val item = connections.firstOrNull { it.id == id } ?: return
         selectedLiveConnectionId = id
+        selectedLiveConnectionIds = setOf(id)
         selectedConnection = item
         preparedPublishConfig = null
+        preparedPublishConfigs = emptyList()
+        streamPreflight = null
+        error = null
+    }
+
+    fun toggleLiveConnection(id: String) {
+        val item = connections.firstOrNull { it.id == id && it.readyToPublish && it.isEnabled } ?: return
+        val max = (membership?.maxSimultaneousDestinations ?: 1).coerceAtLeast(1)
+        val next = selectedLiveConnectionIds.toMutableSet()
+        if (id in next) {
+            if (next.size > 1) next.remove(id)
+        } else {
+            if (next.size >= max) {
+                error = "Your current plan allows up to $max simultaneous destination(s)."
+                return
+            }
+            next.add(id)
+        }
+        selectedLiveConnectionIds = next
+        selectedLiveConnectionId = next.firstOrNull()
+        selectedConnection = selectedLiveConnectionId?.let { primary -> connections.firstOrNull { it.id == primary } } ?: item
+        preparedPublishConfig = null
+        preparedPublishConfigs = emptyList()
         streamPreflight = null
         error = null
     }
@@ -453,15 +481,17 @@ class MobileIntegrationState(
                 connections.firstOrNull { it.id == selected.id }
             }
 
-            val currentLive = selectedLiveConnectionId?.let { id ->
-                connections.firstOrNull { it.id == id && it.readyToPublish && it.isEnabled }
-            }
-            if (currentLive == null) {
-                selectedLiveConnectionId = connections
+            val validIds = connections.filter { it.readyToPublish && it.isEnabled }.map { it.id }.toSet()
+            selectedLiveConnectionIds = selectedLiveConnectionIds.intersect(validIds)
+            if (selectedLiveConnectionIds.isEmpty()) {
+                val fallback = connections
                     .firstOrNull { it.isDefault && it.readyToPublish && it.isEnabled }?.id
                     ?: connections.firstOrNull { it.readyToPublish && it.isEnabled }?.id
-                preparedPublishConfig = null
+                selectedLiveConnectionIds = fallback?.let { setOf(it) } ?: emptySet()
             }
+            selectedLiveConnectionId = selectedLiveConnectionIds.firstOrNull()
+            preparedPublishConfig = null
+            preparedPublishConfigs = emptyList()
         } catch (t: Throwable) {
             error = messageOf(t)
         } finally {
@@ -553,17 +583,21 @@ class MobileIntegrationState(
     }
 
     suspend fun prepareSelectedPublishConfig(): Boolean {
-        val id = selectedLiveConnectionId ?: run {
-            error = "Choose a ready destination first."
+        val ids = selectedLiveConnectionIds.ifEmpty { selectedLiveConnectionId?.let { setOf(it) } ?: emptySet() }
+        if (ids.isEmpty()) {
+            error = "Choose at least one ready destination first."
             return false
         }
         loading = true
         error = null
         return try {
-            preparedPublishConfig = api.publishConfig(id).getOrThrow()
-            true
+            val configs = ids.map { id -> api.publishConfig(id).getOrThrow() }
+            preparedPublishConfigs = configs
+            preparedPublishConfig = configs.firstOrNull()
+            configs.isNotEmpty()
         } catch (t: Throwable) {
             preparedPublishConfig = null
+            preparedPublishConfigs = emptyList()
             error = messageOf(t)
             false
         } finally {
@@ -580,15 +614,18 @@ class MobileIntegrationState(
         internalAudioEnabled: Boolean,
         orientation: String,
     ): Boolean {
-        val connectionId = selectedLiveConnectionId ?: run {
-            error = "Choose a ready destination first."
+        val connectionIds = selectedLiveConnectionIds.ifEmpty { selectedLiveConnectionId?.let { setOf(it) } ?: emptySet() }.toList()
+        val connectionId = connectionIds.firstOrNull() ?: run {
+            error = "Choose at least one ready destination first."
             return false
         }
         loading = true
         error = null
         return try {
-            if (preparedPublishConfig == null) {
-                preparedPublishConfig = api.publishConfig(connectionId).getOrThrow()
+            if (preparedPublishConfigs.isEmpty()) {
+                val configs = connectionIds.map { id -> api.publishConfig(id).getOrThrow() }
+                preparedPublishConfigs = configs
+                preparedPublishConfig = configs.firstOrNull()
             }
             api.saveStreamDraft(
                 title = liveTitle,
@@ -607,7 +644,7 @@ class MobileIntegrationState(
             ).getOrThrow()
             val result = api.runStreamPreflight(
                 title = liveTitle,
-                connectionIds = listOf(connectionId),
+                connectionIds = connectionIds,
                 sceneId = selectedScene?.id,
                 width = width,
                 height = height,
@@ -651,9 +688,11 @@ class MobileIntegrationState(
         error = null
         return try {
             api.deleteConnection(item.id).getOrThrow()
-            if (selectedLiveConnectionId == item.id) {
-                selectedLiveConnectionId = null
+            if (selectedLiveConnectionId == item.id || item.id in selectedLiveConnectionIds) {
+                selectedLiveConnectionIds = selectedLiveConnectionIds - item.id
+                selectedLiveConnectionId = selectedLiveConnectionIds.firstOrNull()
                 preparedPublishConfig = null
+                preparedPublishConfigs = emptyList()
             }
             selectedConnection = null
             refreshConnections()
@@ -1056,7 +1095,15 @@ class MobileIntegrationState(
         return try {
             val recovery = api.recoverBroadcastSession(session.id, publisherInstanceId).getOrThrow()
             activeBroadcast = recovery.session
-            recovery.publishConfig?.let { preparedPublishConfig = it }
+            val recoveredConfigs = recovery.publishConfigs.ifEmpty {
+                recovery.publishConfig?.let { listOf(it) } ?: emptyList()
+            }
+            if (recoveredConfigs.isNotEmpty()) {
+                preparedPublishConfigs = recoveredConfigs
+                preparedPublishConfig = recoveredConfigs.first()
+                selectedLiveConnectionIds = recoveredConfigs.map { it.connectionId }.filter { it.isNotBlank() }.toSet()
+                selectedLiveConnectionId = selectedLiveConnectionIds.firstOrNull()
+            }
             true
         } catch (t: Throwable) {
             error = messageOf(t)
@@ -1081,6 +1128,7 @@ class MobileIntegrationState(
             activeBroadcast = api.endBroadcastSession(session.id).getOrThrow()
             streamPreflight = null
             preparedPublishConfig = null
+            preparedPublishConfigs = emptyList()
             refreshHistory()
             true
         } catch (t: Throwable) {

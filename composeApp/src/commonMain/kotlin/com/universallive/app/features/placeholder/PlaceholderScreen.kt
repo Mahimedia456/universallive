@@ -28,7 +28,7 @@ fun PlaceholderScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(title, color = AppText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("Foundation screen — implementation arrives in its dedicated phase.", color = AppTextMuted, fontSize = 13.sp)
+                Text("This area is ready for Universal Live features and account data.", color = AppTextMuted, fontSize = 13.sp)
             }
         }
     }

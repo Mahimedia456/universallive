@@ -244,7 +244,7 @@ fun Phase17StudioScreen(
     onDestination: (AppDestination) -> Unit,
 ) {
     LockedStudioPage(
-        phase = "Phase 17 · Studio",
+        phase = "CREATOR STUDIO",
         title = "Your creator workspace",
         subtitle = "Prepare scenes, overlays, sound, camera, and stream quality from one professional control center.",
     ) {
@@ -313,7 +313,7 @@ fun Phase18ScenesScreen(
     val active = sceneState.activeScene
 
     LockedStudioPage(
-        phase = "Phase 18 · Scenes",
+        phase = "SCENES",
         title = when (view) {
             SceneView.LIBRARY -> "Scenes"
             SceneView.CATEGORIES -> "Scene categories"
@@ -471,7 +471,7 @@ fun Phase19SceneEditorScreen(
     }
 
     LockedStudioPage(
-        phase = "Phase 19 · Scene Editor",
+        phase = "SCENE EDITOR",
         title = when (view) {
             EditorView.CANVAS -> "Scene Editor"; EditorView.SOURCES -> "Sources"; EditorView.ADD -> "Add Source"; EditorView.CONTROLS -> "Element Controls"; EditorView.LAYERS -> "Layer Order"; EditorView.SAVE -> "Save Layout"
         },
@@ -607,7 +607,7 @@ fun Phase20OverlaysScreen(
     }
 
     LockedStudioPage(
-        phase = "Phase 20 · Overlays",
+        phase = "OVERLAYS",
         title = when (view) { OverlayView.LIBRARY -> "Overlays"; OverlayView.ALERTS -> "Alert Packages"; OverlayView.LOWER -> "Lower Third Editor"; OverlayView.CHAT -> "Chat Overlay"; OverlayView.BRANDING -> "Branding & Style"; OverlayView.APPLY -> "Apply to Scene" },
         subtitle = "Alerts, labels, widgets, and visual identity that make your stream unmistakably yours.",
         onBack = { if (view == OverlayView.LIBRARY) onBack() else view = OverlayView.LIBRARY },
@@ -711,7 +711,7 @@ fun Phase21AudioMixerScreen(
     var preset by remember { mutableStateOf("Streaming") }
 
     LockedStudioPage(
-        phase = "Phase 21 · Audio Mixer",
+        phase = "AUDIO MIXER",
         title = when(view){AudioView.MIXER->"Audio Mixer";AudioView.LEVELS->"Live Audio Levels";AudioView.MIC->"Microphone Settings";AudioView.GAME->"Game Audio";AudioView.MONITORING->"Monitoring";AudioView.PRESETS->"Audio Presets"},
         subtitle = "Control microphone, game audio, monitoring, and your creator mix from one simple surface.",
         onBack = { if(view==AudioView.MIXER) onBack() else view=AudioView.MIXER },
@@ -788,7 +788,7 @@ fun Phase22FacecamScreen(
     var style by remember { mutableStateOf("Default") }
 
     LockedStudioPage(
-        phase="Phase 22 · Facecam",
+        phase="CAMERA",
         title=when(view){FacecamView.SETUP->"Facecam";FacecamView.SOURCE->"Camera Source";FacecamView.FRAME->"Framing & Crop";FacecamView.BACKGROUND->"Background";FacecamView.STYLE->"Style Presets";FacecamView.APPLY->"Preview & Apply"},
         subtitle="Camera setup, framing, and presentation. Make your on-camera presence feel intentional.",
         onBack={if(view==FacecamView.SETUP)onBack()else view=FacecamView.SETUP},
@@ -799,7 +799,7 @@ fun Phase22FacecamScreen(
             FacecamView.SETUP->{PreviewCanvas("Facecam Preview","${facecamState.config.lens.label} camera · ${facecamState.config.shape.label}",if(facecamState.config.enabled)"ENABLED" else "OFF");Spacer(Modifier.height(12.dp));StudioCard{Row(verticalAlignment=Alignment.CenterVertically){Text("Facecam Enabled",color=AppText,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));Switch(facecamState.config.enabled,facecamState::setEnabled)};SettingRow("✓","Camera source",facecamState.config.lens.label);SettingRow("✓","Shape",facecamState.config.shape.label);SettingRow("✓","Size",facecamState.config.sizeLabel)};Spacer(Modifier.height(12.dp));UlPrimaryButton("Open Camera Setup", onClick = {view=FacecamView.SOURCE})}
             FacecamView.SOURCE->{listOf(FacecamLens.FRONT,FacecamLens.BACK).forEach{lens->StudioCard(selected=facecamState.config.lens==lens,onClick={facecamState.setLens(lens)}){SettingRow("◉",if(lens==FacecamLens.FRONT)"Front Camera" else "Back Camera",if(lens==FacecamLens.FRONT)"Built-in front camera" else "Rear device camera")}};Spacer(Modifier.height(12.dp));UlPrimaryButton("Continue", onClick = {view=FacecamView.FRAME})}
             FacecamView.FRAME->{PreviewCanvas("Framing Preview","Position ${facecamState.config.positionLabel}");Spacer(Modifier.height(12.dp));StudioCard{Text("Size ${facecamState.config.sizeLabel}",color=AppTextSecondary);Slider(facecamState.config.size,onValueChange=facecamState::setSize,valueRange=.14f..0.42f);Text("Horizontal position",color=AppTextSecondary);Slider(facecamState.config.x,onValueChange={facecamState.setPosition(it,facecamState.config.y)},valueRange=0f..(1f-facecamState.config.size));Text("Vertical position",color=AppTextSecondary);Slider(facecamState.config.y,onValueChange={facecamState.setPosition(facecamState.config.x,it)},valueRange=0f..(1f-facecamState.config.size))};Spacer(Modifier.height(12.dp));UlPrimaryButton("Save Framing", onClick = {view=FacecamView.BACKGROUND})}
-            FacecamView.BACKGROUND->{PreviewCanvas("Background: $background","Preview only until media processing backend is added");Spacer(Modifier.height(12.dp));SegmentRow(listOf("None","Blur","Chroma","Remove","Studio","Gaming"),background){background=it};Spacer(Modifier.height(12.dp));UlPrimaryButton("Continue", onClick = {view=FacecamView.STYLE})}
+            FacecamView.BACKGROUND->{PreviewCanvas("Background: $background","Preview uses the selected camera style; unsupported effects remain disabled during broadcast.");Spacer(Modifier.height(12.dp));SegmentRow(listOf("None","Blur","Chroma","Remove","Studio","Gaming"),background){background=it};Spacer(Modifier.height(12.dp));UlPrimaryButton("Continue", onClick = {view=FacecamView.STYLE})}
             FacecamView.STYLE->{listOf(FacecamShape.ROUNDED,FacecamShape.CIRCLE,FacecamShape.SQUARE).forEach{shape->StudioCard(selected=facecamState.config.shape==shape,onClick={facecamState.setShape(shape);style=shape.label}){Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(44.dp).clip(if(shape==FacecamShape.CIRCLE)CircleShape else RoundedCornerShape(if(shape==FacecamShape.ROUNDED)14.dp else 3.dp)).background(AppPrimary.copy(alpha=.18f)));Spacer(Modifier.width(12.dp));Text(shape.label,color=AppText,fontWeight=FontWeight.Bold)}};Spacer(Modifier.height(8.dp))};Spacer(Modifier.height(12.dp));UlPrimaryButton("Preview & Apply", onClick = {view=FacecamView.APPLY})}
             FacecamView.APPLY->{PreviewCanvas("Facecam $style","$background background · ${facecamState.config.sizeLabel}","SCENE PREVIEW");Spacer(Modifier.height(12.dp));SegmentRow(listOf("Top Left","Top Right","Bottom Left","Bottom Right"),"Top Right"){pos->when(pos){"Top Left"->facecamState.setPosition(.04f,.05f);"Bottom Left"->facecamState.setPosition(.04f,.70f);"Bottom Right"->facecamState.setPosition(.72f,.70f);else->facecamState.setPosition(.72f,.05f)}};Spacer(Modifier.height(12.dp));UlPrimaryButton("Apply to Scene", onClick = {facecamState.setEnabled(true);scope.launch{state?.persistFacecam(facecamState,background)};view=FacecamView.SETUP})}
         }
@@ -823,7 +823,7 @@ fun Phase23StreamQualityScreen(
     val snap=captureController.snapshot
 
     LockedStudioPage(
-        phase="Phase 23 · Stream Quality",
+        phase="STREAM QUALITY",
         title=when(view){QualityView.OVERVIEW->"Stream Quality";QualityView.PRESETS->"Recommended Presets";QualityView.MANUAL->"Manual Settings";QualityView.PERFORMANCE->"Device Performance";QualityView.NETWORK->"Network Recommendations";QualityView.SUMMARY->"Go Live Ready"},
         subtitle="Balance resolution, frame rate, bitrate, and device/network performance before you broadcast.",
         onBack={if(view==QualityView.OVERVIEW)onBack()else view=QualityView.OVERVIEW},
@@ -857,7 +857,7 @@ fun Phase24StreamHistoryScreen(
     val filtered=state.streamHistory.filter{item->(filter=="All"||item.status.equals(filter,true))&&(query.isBlank()||item.title.orEmpty().contains(query,true))}
 
     LockedStudioPage(
-        phase="Phase 24 · Stream History",
+        phase="STREAM HISTORY",
         title=when(view){HistoryView.OVERVIEW->"Stream History";HistoryView.FILTERS->"Filters";HistoryView.SESSIONS->"Stream Sessions";HistoryView.SEARCH->"Search History";HistoryView.HIGHLIGHTS->"Recent Highlights"},
         subtitle="Review previous broadcasts, performance, and outcomes. Learn, improve, and go further.",
     ) {
@@ -865,7 +865,7 @@ fun Phase24StreamHistoryScreen(
         Spacer(Modifier.height(18.dp))
         when(view){
             HistoryView.OVERVIEW->{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MetricTile("Total",state.streamHistory.size.toString(),modifier=Modifier.weight(1f));MetricTile("Completed",state.streamHistory.count{it.status.equals("ended",true)||it.status.equals("completed",true)}.toString(),AppSuccess,Modifier.weight(1f));MetricTile("Failed",state.streamHistory.count{it.status.contains("fail",true)||it.status.contains("error",true)}.toString(),AppLive,Modifier.weight(1f))};Spacer(Modifier.height(14.dp));HistoryList(state.streamHistory.take(6),onOpenDetails);if(state.streamHistory.isEmpty()){StudioCard{Text("No stream history yet. Your completed sessions will appear here after backend session sync.",color=AppTextSecondary)}};Spacer(Modifier.height(12.dp));UlSecondaryButton("Refresh History", onClick = {scope.launch{state.refreshHistory()}})}
-            HistoryView.FILTERS->{Text("Stream Status",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(9.dp));SegmentRow(listOf("All","ended","failed","live"),filter){filter=it};Spacer(Modifier.height(16.dp));Text("Status filtering is backed by the Phase 24 history query contract. Platform/date filters remain additive.",color=AppTextSecondary,fontSize=12.sp,lineHeight=18.sp);Spacer(Modifier.height(12.dp));UlPrimaryButton("Apply Filters", onClick = {scope.launch {
+            HistoryView.FILTERS->{Text("Stream Status",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(9.dp));SegmentRow(listOf("All","ended","failed","live"),filter){filter=it};Spacer(Modifier.height(16.dp));Text("Filter your real stream history by status. Additional platform and date filters can be applied as data becomes available.",color=AppTextSecondary,fontSize=12.sp,lineHeight=18.sp);Spacer(Modifier.height(12.dp));UlPrimaryButton("Apply Filters", onClick = {scope.launch {
                 val remote = state.api.streamHistoryFiltered(filter.takeUnless { it == "All" }, 50, 0).getOrNull()
                 if (remote != null) { /* local state remains source for screen; refresh keeps canonical ordering */ state.refreshHistory() }
             }; view=HistoryView.SESSIONS})}
@@ -898,9 +898,9 @@ fun Phase25StreamAnalyticsScreen(
     LaunchedEffect(item?.id) { if (item != null) state.refreshSelectedHistoryAnalytics() }
 
     LockedStudioPage(
-        phase="Phase 25 · Stream Details / Analytics",
+        phase="STREAM ANALYTICS",
         title=when(view){AnalyticsView.SUMMARY->"Stream Details";AnalyticsView.PERFORMANCE->"Performance Metrics";AnalyticsView.HEALTH->"Stream Health";AnalyticsView.PLATFORM->"Platform Breakdown";AnalyticsView.ISSUES->"Issues Timeline";AnalyticsView.INSIGHTS->"Key Insights"},
-        subtitle="Understand each session using the telemetry Universal Live actually has today, with richer platform analytics added during backend integration.",
+        subtitle="Review stream health, bitrate, duration and destination performance from recorded telemetry.",
         onBack={if(view==AnalyticsView.SUMMARY)onBack()else view=AnalyticsView.SUMMARY},
     ) {
         SegmentRow(listOf("Summary","Performance","Health","Platforms","Issues","Insights"),when(view){AnalyticsView.SUMMARY->"Summary";AnalyticsView.PERFORMANCE->"Performance";AnalyticsView.HEALTH->"Health";AnalyticsView.PLATFORM->"Platforms";AnalyticsView.ISSUES->"Issues";AnalyticsView.INSIGHTS->"Insights"}){view=when(it){"Performance"->AnalyticsView.PERFORMANCE;"Health"->AnalyticsView.HEALTH;"Platforms"->AnalyticsView.PLATFORM;"Issues"->AnalyticsView.ISSUES;"Insights"->AnalyticsView.INSIGHTS;else->AnalyticsView.SUMMARY}}
@@ -908,9 +908,9 @@ fun Phase25StreamAnalyticsScreen(
         if(item==null){StudioCard{Text("No stream selected. Open a session from Stream History first.",color=AppTextSecondary)};Spacer(Modifier.height(12.dp));UlSecondaryButton("Back",onBack);return@LockedStudioPage}
         when(view){
             AnalyticsView.SUMMARY->{PreviewCanvas(item.title?:"Stream Session",historyMeta(item),"${item.status.uppercase()}");Spacer(Modifier.height(12.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MetricTile("Duration",formatDuration(item.durationSeconds),modifier=Modifier.weight(1f));MetricTile("Avg bitrate","${analytics?.avgBitrateKbps ?: item.avgBitrateKbps ?: 0} Kbps",modifier=Modifier.weight(1f))};Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MetricTile("Avg FPS",item.avgFps?.let{"%.1f".format(it)}?:"—",modifier=Modifier.weight(1f));MetricTile("Dropped",(analytics?.droppedFrames ?: item.droppedFrames).toString(),if((analytics?.droppedFrames ?: item.droppedFrames)==0)AppSuccess else AppWarning,Modifier.weight(1f))}}
-            AnalyticsView.PERFORMANCE->{StudioCard{Text("Technical performance",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(12.dp));SettingRow("◌","Average FPS",item.avgFps?.let{"%.1f".format(it)}?:"No telemetry");SettingRow("↗","Average bitrate","${item.avgBitrateKbps?:0} Kbps");SettingRow("⚠","Dropped frames",item.droppedFrames.toString(),valueColor=if(item.droppedFrames==0)AppSuccess else AppWarning);SettingRow("⚙","Encoder",snap.encoderName.ifBlank{"Session telemetry"})};Spacer(Modifier.height(12.dp));Text("Performance values are loaded from persisted Phase 25 telemetry analytics; graph rendering can use the returned telemetry series.",color=AppTextSecondary,fontSize=11.sp,lineHeight=16.sp)}
+            AnalyticsView.PERFORMANCE->{StudioCard{Text("Technical performance",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(12.dp));SettingRow("◌","Average FPS",item.avgFps?.let{"%.1f".format(it)}?:"No telemetry");SettingRow("↗","Average bitrate","${item.avgBitrateKbps?:0} Kbps");SettingRow("⚠","Dropped frames",item.droppedFrames.toString(),valueColor=if(item.droppedFrames==0)AppSuccess else AppWarning);SettingRow("⚙","Encoder",snap.encoderName.ifBlank{"Session telemetry"})};Spacer(Modifier.height(12.dp));Text("Performance values come from persisted stream telemetry for this broadcast.",color=AppTextSecondary,fontSize=11.sp,lineHeight=16.sp)}
             AnalyticsView.HEALTH->{val healthy=item.droppedFrames<20;StudioCard{HeaderStatus(if(healthy)"Stream Healthy" else "Review Stability",if(healthy)AppSuccess else AppWarning);Spacer(Modifier.height(12.dp));Text(if(healthy)"No major frame-loss signal was recorded in this summary." else "Dropped frames suggest the stream experienced pressure during the session.",color=AppTextSecondary,fontSize=12.sp,lineHeight=18.sp);Spacer(Modifier.height(14.dp));LinearProgressIndicator(progress={if(healthy).92f else .62f},modifier=Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),color=if(healthy)AppSuccess else AppWarning,trackColor=AppSurfaceInteractive)}}
-            AnalyticsView.PLATFORM->{StudioCard{Text("Platform breakdown",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp));Text("Viewer and engagement totals are not fabricated in the mobile redesign. They will populate here from YouTube/Facebook/Twitch/TikTok APIs and backend relay telemetry later.",color=AppTextSecondary,fontSize=12.sp,lineHeight=18.sp)};Spacer(Modifier.height(10.dp));listOf("YouTube","Facebook","Twitch","TikTok","Custom RTMP").forEach{p->StudioCard{Row(verticalAlignment=Alignment.CenterVertically){Text("●",color=AppTextMuted);Spacer(Modifier.width(10.dp));Text(p,color=AppText,modifier=Modifier.weight(1f));Text("Awaiting API",color=AppTextMuted,fontSize=11.sp)}};Spacer(Modifier.height(7.dp))}}
+            AnalyticsView.PLATFORM->{StudioCard{Text("Platform breakdown",color=AppText,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp));Text("Viewer and engagement totals appear only when the connected destination reports verified analytics.",color=AppTextSecondary,fontSize=12.sp,lineHeight=18.sp)};Spacer(Modifier.height(10.dp));listOf("YouTube","Facebook","Twitch","TikTok","Custom RTMP").forEach{p->StudioCard{Row(verticalAlignment=Alignment.CenterVertically){Text("●",color=AppTextMuted);Spacer(Modifier.width(10.dp));Text(p,color=AppText,modifier=Modifier.weight(1f));Text("No analytics yet",color=AppTextMuted,fontSize=11.sp)}};Spacer(Modifier.height(7.dp))}}
             AnalyticsView.ISSUES->{val issues=mutableListOf<String>();if(item.droppedFrames>0)issues+="${item.droppedFrames} dropped frames";if((item.avgBitrateKbps?:0)<3000)issues+="Average bitrate below high-quality target";if(issues.isEmpty())issues+="No summary-level issues detected";issues.forEachIndexed{index,issue->StudioCard{Row{Box(Modifier.size(34.dp).clip(CircleShape).background(if(issue.startsWith("No"))AppSuccess.copy(alpha=.15f) else AppWarning.copy(alpha=.15f)),contentAlignment=Alignment.Center){Text(if(issue.startsWith("No"))"✓" else "!",color=if(issue.startsWith("No"))AppSuccess else AppWarning,fontWeight=FontWeight.Black)};Spacer(Modifier.width(12.dp));Column{Text(if(index==0)"Session check" else "Technical note",color=AppText,fontWeight=FontWeight.Bold);Text(issue,color=AppTextSecondary,fontSize=11.sp)}}};Spacer(Modifier.height(8.dp))}}
             AnalyticsView.INSIGHTS->{val fps=item.avgFps?:0.0;val bitrate=item.avgBitrateKbps?:0;val insights=listOf(if(item.droppedFrames==0)"Technical Excellence" to "No dropped frames were recorded in the persisted summary." else "Stability Opportunity" to "Reduce load or bitrate if dropped frames repeat.",if(fps>=29)"Frame Rate On Target" to "Average FPS stayed near the configured 30 FPS baseline." else "FPS Opportunity" to "Review device load and capture settings.",if(bitrate>=6000)"High Quality Bitrate" to "Average bitrate supported a strong 1080p profile." else "Bandwidth Opportunity" to "Use the quality presets to better match available upload bandwidth.");insights.forEach{(a,b)->StudioCard{Text(a,color=AppPrimary,fontWeight=FontWeight.Bold);Text(b,color=AppTextSecondary,fontSize=12.sp,lineHeight=17.sp)};Spacer(Modifier.height(8.dp))}}
         }

@@ -234,7 +234,7 @@ fun Phase10ConnectionsScreen(
     ConnectionsPage(
         title = "Connections",
         subtitle = "Stream to your world. Manage every destination from one place.",
-        eyebrow = "Phase 10 • Link your world",
+        eyebrow = "STREAMING DESTINATIONS",
         onBack = onBack,
     ) {
         StateError(state)
@@ -301,7 +301,7 @@ fun Phase10ConnectionsScreen(
         UlPrimaryButton("Add Destination", onClick = { onRoute(AppRoute.AddConnection) })
         Spacer(Modifier.height(10.dp))
         Text(
-            "Platform account-linking APIs will be connected in the backend integration phase. Until then, the same secure RTMP/RTMPS workflow remains fully usable.",
+            "Use secure RTMP/RTMPS encoder credentials for destinations that support direct ingest.",
             color = AppTextMuted,
             fontSize = 11.sp,
             lineHeight = 16.sp,
@@ -366,7 +366,7 @@ fun Phase11AddDestinationScreen(
     ConnectionsPage(
         title = "Add Destination",
         subtitle = "Choose a platform to connect and start streaming.",
-        eyebrow = "Phase 11 • Connect the right platform",
+        eyebrow = "ADD DESTINATION",
         onBack = onBack,
     ) {
         StateError(state)
@@ -401,7 +401,7 @@ fun Phase11AddDestinationScreen(
             Text("How connection works", color = AppText, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
             Text(
-                "For now, paste the RTMP/RTMPS server and stream key supplied by the platform. Later, backend OAuth APIs can connect accounts directly without redesigning these screens.",
+                "Paste the RTMP/RTMPS server and stream key supplied by your streaming platform. Universal Live stores the destination securely and uses it only when you start a broadcast.",
                 color = AppTextMuted,
                 fontSize = 11.sp,
                 lineHeight = 17.sp,
@@ -429,9 +429,9 @@ fun Phase11PlatformConnectScreen(
         subtitle = if (platform == "custom_rtmp") {
             "Connect to any RTMP-compatible streaming service."
         } else {
-            "Connect ${spec.title} now with its encoder credentials. Direct account linking will plug into this screen in the backend API phase."
+            "Connect ${spec.title} with the encoder credentials provided by the platform."
         },
-        eyebrow = "Phase 11 • ${spec.title}",
+        eyebrow = "CONNECT ${spec.title}",
         onBack = onBack,
     ) {
         StateError(state)
@@ -460,10 +460,10 @@ fun Phase11PlatformConnectScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Backend-ready connection boundary", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Secure destination setup", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "OAuth/account selection will be added later. The secure RTMP path below is functional now and uses the same saved destination model.",
+                        "Use the secure RTMP details provided by your platform. Saved credentials stay protected and are requested only when you publish.",
                         color = AppTextSecondary,
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
@@ -495,7 +495,7 @@ fun Phase11PlatformConnectScreen(
             Text("Your stream key stays private", color = AppText, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Universal Live sends credentials to the backend vault. The key is requested only when this authenticated device prepares a live publish session.",
+                "Your stream key is stored securely and retrieved only when this authenticated device prepares a live broadcast.",
                 color = AppTextMuted,
                 fontSize = 11.sp,
                 lineHeight = 17.sp,
@@ -551,7 +551,7 @@ fun Phase12ConnectionDetailScreen(
     ConnectionsPage(
         title = "Manage Connection",
         subtitle = "View details, verify status and control how this destination is used.",
-        eyebrow = "Phase 12 • Destination details",
+        eyebrow = "DESTINATION DETAILS",
         onBack = onBack,
     ) {
         StateError(state)
@@ -599,7 +599,7 @@ fun Phase12ConnectionDetailScreen(
                     Column {
                         Text(if (result.ok) "Connection successful" else "Connection needs attention", color = AppText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text(
-                            if (result.ok) "Backend verified this saved destination." else "Check the server URL / stream key and test again.",
+                            if (result.ok) "Destination verified successfully." else "Check the server URL / stream key and test again.",
                             color = AppTextSecondary,
                             fontSize = 11.sp,
                         )
@@ -611,7 +611,7 @@ fun Phase12ConnectionDetailScreen(
         Spacer(Modifier.height(14.dp))
         ManageAction("✎", "Edit connection", "Update name, state or encrypted stream credentials") { onRoute(AppRoute.EditConnection) }
         Spacer(Modifier.height(8.dp))
-        ManageAction("≈", "Test connection", "Ask the backend to verify this destination") {
+        ManageAction("≈", "Test connection", "Verify the saved destination configuration") {
             scope.launch { testResult = state.testSelectedConnection() }
         }
         Spacer(Modifier.height(8.dp))
@@ -698,7 +698,7 @@ fun Phase12EditConnectionScreen(
 ) {
     val item = state.selectedConnection
     if (item == null) {
-        ConnectionsPage("Edit Destination", "No destination is selected.", "Phase 12 • Edit", onBack) {
+        ConnectionsPage("Edit Destination", "No destination is selected.", "EDIT DESTINATION", onBack) {
             UlSecondaryButton("Back", onClick = onBack)
         }
         return
@@ -715,7 +715,7 @@ fun Phase12EditConnectionScreen(
     ConnectionsPage(
         title = "Edit ${platformName(item.platform)} Destination",
         subtitle = "Update destination settings and streaming preferences.",
-        eyebrow = "Phase 12 • Edit connection",
+        eyebrow = "EDIT DESTINATION connection",
         onBack = onBack,
     ) {
         StateError(state)
@@ -750,7 +750,7 @@ fun Phase12EditConnectionScreen(
             Text("Replace stream credentials", color = AppText, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Optional. Leave both fields empty to keep the credentials already stored in the backend vault.",
+                "Optional. Leave both fields empty to keep the credentials already stored securely.",
                 color = AppTextMuted,
                 fontSize = 11.sp,
                 lineHeight = 17.sp,

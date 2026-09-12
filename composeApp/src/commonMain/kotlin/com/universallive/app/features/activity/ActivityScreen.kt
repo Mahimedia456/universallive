@@ -24,7 +24,7 @@ fun ActivityScreen(onDestinationChanged: (AppDestination) -> Unit) {
             Text("Broadcast activity", color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Stream history and performance details arrive in Mobile UI Phase 14. This route is active now so the final navigation architecture stays stable.",
+                "Your completed and interrupted broadcasts appear here with available performance details.",
                 color = AppTextMuted,
                 fontSize = 13.sp,
                 lineHeight = 19.sp,

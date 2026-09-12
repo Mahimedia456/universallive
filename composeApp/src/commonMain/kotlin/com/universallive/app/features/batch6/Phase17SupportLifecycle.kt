@@ -127,7 +127,7 @@ fun DeleteAccountScreen(
     SettingsPage("Delete Account", "This action is intentionally difficult to perform accidentally.", onBack) {
         SettingCard(
             "Permanent deletion",
-            "Deleting your account will remove backend-synced profile data, saved connections, scenes, activity and subscription-linked app records where legally permitted.",
+            "Deleting your account removes eligible profile data, saved connections, scenes, activity and subscription-linked app records where legally permitted.",
             "DANGER",
             AppLive,
         )

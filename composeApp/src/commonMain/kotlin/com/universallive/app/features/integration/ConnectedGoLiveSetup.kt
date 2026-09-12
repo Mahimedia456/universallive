@@ -26,6 +26,7 @@ import com.universallive.app.navigation.AppDestination
 import com.universallive.app.navigation.AppRoute
 import com.universallive.app.streaming.capture.CaptureController
 import com.universallive.app.streaming.capture.CaptureMode
+import com.universallive.app.streaming.capture.VideoSourceMode
 import com.universallive.app.streaming.facecam.FacecamState
 import com.universallive.app.streaming.model.StreamFps
 import com.universallive.app.streaming.model.StreamOrientation
@@ -384,6 +385,7 @@ fun ConnectedCountdownScreen(
     var count by remember { mutableStateOf(3) }
     val scope = rememberCoroutineScope()
     val publishConfig = state.preparedPublishConfig
+    val publishConfigs = state.preparedPublishConfigs
 
     Box(Modifier.fillMaxSize().background(AppBackground).systemBarsPadding()) {
         Column(
@@ -401,7 +403,7 @@ fun ConnectedCountdownScreen(
             Text("Broadcast ready", color = AppText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(publishConfig?.displayName ?: "Destination", color = AppTextSecondary)
             Spacer(Modifier.height(8.dp))
-            Text("The backend session is created before capture starts.", color = AppTextMuted, fontSize = 11.sp)
+            Text("Your broadcast session is secured before capture starts.", color = AppTextMuted, fontSize = 11.sp)
             state.error?.let {
                 Spacer(Modifier.height(10.dp))
                 Text(it, color = AppWarning, fontSize = 12.sp)
@@ -416,10 +418,11 @@ fun ConnectedCountdownScreen(
                     onClick = {
                         val cfg = publishConfig ?: return@UlPrimaryButton
                         scope.launch {
-                            val connectionId = state.selectedLiveConnectionId ?: return@launch
-                            if (state.beginBroadcast(state.liveTitle, listOf(connectionId), state.selectedScene?.id)) {
+                            val connectionIds = state.selectedLiveConnectionIds.toList()
+                            if (connectionIds.isEmpty()) return@launch
+                            if (state.beginBroadcast(state.liveTitle, connectionIds, state.selectedScene?.id)) {
                                 prepareConnectedCapture(
-                                    publishConfig = cfg,
+                                    publishConfigs = publishConfigs.ifEmpty { listOf(cfg) },
                                     streamState = streamState,
                                     captureController = captureController,
                                     facecamState = facecamState,
@@ -480,7 +483,7 @@ fun ConnectedEndStreamConfirmationScreen(
 }
 
 private fun prepareConnectedCapture(
-    publishConfig: PublishConfig,
+    publishConfigs: List<PublishConfig>,
     streamState: StreamConfigState,
     captureController: CaptureController,
     facecamState: FacecamState,
@@ -488,8 +491,7 @@ private fun prepareConnectedCapture(
     sceneState: SceneState,
 ) {
     val config = streamState.config
-    captureController.setCaptureMode(CaptureMode.ENTIRE_DEVICE)
-    captureController.configureAudio(config.microphoneEnabled, config.internalAudioEnabled)
+    captureController.configureAudio(config.microphoneEnabled, config.internalAudioEnabled && captureController.requestedVideoSource == VideoSourceMode.SCREEN)
     captureController.configureVideo(
         width = config.resolution.width,
         height = config.resolution.height,
@@ -497,10 +499,14 @@ private fun prepareConnectedCapture(
         bitrateKbps = config.bitrateKbps,
         orientation = config.orientation.label,
     )
-    captureController.configurePublish(
-        serverUrl = publishConfig.serverUrl,
-        streamKey = publishConfig.streamKey,
-        targetName = publishConfig.displayName,
+    captureController.configurePublishTargets(
+        publishConfigs.map { cfg ->
+            com.universallive.app.streaming.capture.PublishTargetConfig(
+                serverUrl = cfg.serverUrl,
+                streamKey = cfg.streamKey,
+                targetName = cfg.displayName,
+            )
+        }
     )
     captureController.configureFacecam(
         enabled = facecamState.config.enabled,

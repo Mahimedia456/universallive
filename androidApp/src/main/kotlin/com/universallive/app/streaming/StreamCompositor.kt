@@ -52,6 +52,7 @@ internal class StreamCompositor(
     initialScreenWidth: Int,
     initialScreenHeight: Int,
     private val facecam: FacecamRenderConfig,
+    private val primaryCamera: Boolean = false,
     private var overlays: List<OverlayRenderConfig> = emptyList(),
 ) {
     private val thread = HandlerThread("UniversalLiveGL")
@@ -110,7 +111,7 @@ internal class StreamCompositor(
                 }
 
                 cameraTexture = SurfaceTexture(cameraTextureId).apply {
-                    setDefaultBufferSize(1280, 720)
+                    setDefaultBufferSize(if (primaryCamera) width else 1280, if (primaryCamera) height else 720)
                     setOnFrameAvailableListener({
                         cameraFrameReady = true
                         requestRender()
@@ -235,7 +236,9 @@ internal class StreamCompositor(
         }
 
     private fun renderFrame() {
-        if (!screenFrameReady) {
+        if (primaryCamera) {
+            if (!cameraFrameReady) return
+        } else if (!screenFrameReady) {
             return
         }
 
@@ -244,8 +247,10 @@ internal class StreamCompositor(
 
         eglWindow.makeCurrent()
 
-        screenTexture?.updateTexImage()
-        screenTexture?.getTransformMatrix(screenMatrix)
+        if (screenFrameReady) {
+            screenTexture?.updateTexImage()
+            screenTexture?.getTransformMatrix(screenMatrix)
+        }
 
         if (cameraFrameReady) {
             cameraTexture?.updateTexImage()
@@ -257,32 +262,45 @@ internal class StreamCompositor(
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        // Fill the encoder canvas without stretching. Ultra-wide gaming phones are wider than
-        // 16:9, so crop only the excess edge area. When the phone rotates, the MediaProjection
-        // input dimensions are updated first and the crop is recalculated on the next frame.
-        val sourceAspect = screenInputWidth.toFloat() / screenInputHeight.coerceAtLeast(1)
-        val targetAspect = width.toFloat() / height.coerceAtLeast(1)
-        val cropScaleX: Float
-        val cropScaleY: Float
-        if (sourceAspect > targetAspect) {
-            cropScaleX = (targetAspect / sourceAspect).coerceIn(0.05f, 1f)
-            cropScaleY = 1f
+        if (primaryCamera) {
+            // A camera scene is the primary program feed. The broadcast output is deliberately
+            // unmirrored; creators see the same left/right orientation viewers receive.
+            GLES20.glViewport(0, 0, width, height)
+            externalRenderer.draw(
+                texture = cameraTextureId,
+                matrix = cameraMatrix,
+                mirrored = false,
+                mask = OverlayMask.NONE,
+            )
         } else {
-            cropScaleX = 1f
-            cropScaleY = (sourceAspect / targetAspect).coerceIn(0.05f, 1f)
+            // Preserve the complete captured screen. Never zoom or center-crop the device output.
+            // If the phone/game aspect ratio differs from the encoder canvas, letterbox/pillarbox it
+            // so the published frame shows the real screen exactly and is never mirrored.
+            val sourceAspect = screenInputWidth.toFloat() / screenInputHeight.coerceAtLeast(1)
+            val targetAspect = width.toFloat() / height.coerceAtLeast(1)
+            val viewportWidth: Int
+            val viewportHeight: Int
+            if (sourceAspect > targetAspect) {
+                viewportWidth = width
+                viewportHeight = (width / sourceAspect).toInt().coerceAtLeast(2)
+            } else {
+                viewportHeight = height
+                viewportWidth = (height * sourceAspect).toInt().coerceAtLeast(2)
+            }
+            val viewportX = ((width - viewportWidth) / 2).coerceAtLeast(0)
+            val viewportY = ((height - viewportHeight) / 2).coerceAtLeast(0)
+            GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
+            externalRenderer.draw(
+                texture = screenTextureId,
+                matrix = screenMatrix,
+                mirrored = false,
+                mask = OverlayMask.NONE,
+                cropScaleX = 1f,
+                cropScaleY = 1f,
+            )
         }
-        GLES20.glViewport(0, 0, width, height)
 
-        externalRenderer.draw(
-            texture = screenTextureId,
-            matrix = screenMatrix,
-            mirrored = false,
-            mask = OverlayMask.NONE,
-            cropScaleX = cropScaleX,
-            cropScaleY = cropScaleY,
-        )
-
-        if (facecam.enabled && cameraFrameReady) {
+        if (!primaryCamera && facecam.enabled && cameraFrameReady) {
             val sizePx =
                 (facecam.size.coerceIn(0.12f, 0.5f) * width)
                     .toInt()

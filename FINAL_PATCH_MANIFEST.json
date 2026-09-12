@@ -1,0 +1,207 @@
+[
+  {
+    "path": "FINAL_2026_09_12_COMMANDS.txt",
+    "sha256": "8b192a266087bb79432a52e5efe7d14ac683ef0bce7fc938066441f67b92d7d8",
+    "bytes": 3993
+  },
+  {
+    "path": "FINAL_PATCH_README.txt",
+    "sha256": "8715f2cc6e159430c76fc99897d219bea0a970845a43298da6fa0ac427b8d326",
+    "bytes": 1672
+  },
+  {
+    "path": "tools/verify-admin-deployment.ps1",
+    "sha256": "75bb47b9f1236e4e568a8bbf8be6e11c8d076911d3cb51f3eed0d59134282404",
+    "bytes": 2028
+  },
+  {
+    "path": "tools/final-mobile-admin-build-verify.ps1",
+    "sha256": "bad4e827bbc9b9eb04a2999fa304846481650ab8ea44f41e9cbbd6958a53d635",
+    "bytes": 5284
+  },
+  {
+    "path": "androidApp/src/main/AndroidManifest.xml",
+    "sha256": "a252591d6269593f594d43eb6824f611cc6600a6b55af16a765d3e69767e8fde",
+    "bytes": 2006
+  },
+  {
+    "path": "androidApp/src/main/kotlin/com/universallive/app/MainActivity.kt",
+    "sha256": "2a63419dc5646662685db6e9b0cdbfb990d3d5d84d0478a35275af8e0c2b7882",
+    "bytes": 14474
+  },
+  {
+    "path": "androidApp/src/main/kotlin/com/universallive/app/streaming/ScreenCaptureService.kt",
+    "sha256": "ee2ff5d3c9034e7fb651b1d9cffe3c30d942de9f45cbfe19fc5fc1eafd15ca77",
+    "bytes": 57006
+  },
+  {
+    "path": "androidApp/src/main/kotlin/com/universallive/app/streaming/StreamCompositor.kt",
+    "sha256": "9585f2508aa143dc90972b5cff0464f3677ef3b8715bbe9b7ceae68a497a74f8",
+    "bytes": 16350
+  },
+  {
+    "path": "androidApp/src/main/kotlin/com/universallive/app/integration/AndroidMobileBackendApi.kt",
+    "sha256": "9364bd8d96b1d92bedec98ba5df2a7f22f124676deab5aac81ddf59726987b38",
+    "bytes": 61382
+  },
+  {
+    "path": "backend/.env.example",
+    "sha256": "83e4b9bc3b4a0e215967328708477790a5bf31e27d37e3b4b1e0481dd1eb85ed",
+    "bytes": 1591
+  },
+  {
+    "path": "backend/sql/final/0630_admin_runtime_hardening.sql",
+    "sha256": "7ff56777ab8dd66fff8fbcdd4d0f5fe13453e5ed7c48d09fcd468a295cad5172",
+    "bytes": 6747
+  },
+  {
+    "path": "backend/sql/final/0631_admin_super_admin_seed_TEMPLATE.sql",
+    "sha256": "1781086e1b91d4446386d6a4e4e236a6a7aede2a9fe641c5dfb4dda7c51d86f9",
+    "bytes": 1581
+  },
+  {
+    "path": "backend/src/server.ts",
+    "sha256": "061a9b1e9fc03e53ab79895f1d6a88a4b62011adbbcd0b79a8ec0c44db522940",
+    "bytes": 2260
+  },
+  {
+    "path": "backend/src/main.ts",
+    "sha256": "061a9b1e9fc03e53ab79895f1d6a88a4b62011adbbcd0b79a8ec0c44db522940",
+    "bytes": 2260
+  },
+  {
+    "path": "backend/src/admin-auth/admin-auth.service.ts",
+    "sha256": "8fd1e106d7d020a0712eea04766f776c6578e63d844411479957593a6841d6ce",
+    "bytes": 6070
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/navigation/RootNavigation.kt",
+    "sha256": "8b1f2c4909b06c6059643c6697bad668fc21f2a20178fd05a47b1131dd15f955",
+    "bytes": 26769
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/streaming/model/StreamConfig.kt",
+    "sha256": "6dc3c474ef4552ef69da813e88e7b093496d57308b335b6bd19e7502643199f4",
+    "bytes": 1159
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/streaming/capture/CaptureController.kt",
+    "sha256": "b73a215d31ea5cfbfc78cc0b41ad30b7f634c590c013d7b2a0dc2f175d51168d",
+    "bytes": 9293
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/studio/Phase17To25LockedScreens.kt",
+    "sha256": "ee41e2d8a26fcbe1273fa5ac7720acfcbd2878b9679fd79729db9adbff00254f",
+    "bytes": 68908
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch5/Phase14PostStreamActivity.kt",
+    "sha256": "3ba8d5459ed06ba58fafc76ac95bd1dac9ea11d9f05033103e863755932aebcc",
+    "bytes": 6007
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch5/Phase15SubscriptionBilling.kt",
+    "sha256": "d463229e62eef5b9d29f564167aaeb56bde5338f993b41c8e263ed7c6fb4b530",
+    "bytes": 5247
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch6/Phase16ProfileSettings.kt",
+    "sha256": "098318b46917bffc75da63553e291ca6116d5d5071b04d776eb501a03de2be39",
+    "bytes": 8925
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch6/Phase18SystemStates.kt",
+    "sha256": "60f99e7c2d8c22c8a08ab138a7316836814119ae47fb7afca4d5ed09459c6008",
+    "bytes": 4927
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch6/Phase17SupportLifecycle.kt",
+    "sha256": "31bf831151c7119d86e7ba6aa1cbc90d91f43bf8241bc50c3e1fe89ce7abce89",
+    "bytes": 6951
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/account/Phase26To33LockedScreens.kt",
+    "sha256": "63fcc867ce8c03d9f47e7d1e668080f9748de36992b1a4153efd28b93a5c13bc",
+    "bytes": 39216
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/auth/AuthScreens.kt",
+    "sha256": "4f64426af70a1c92059a45d4ebbbfb3c2ed4cb18a0acd957b0166d38ad33717b",
+    "bytes": 5004
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/integration/ConnectedFinalScreens.kt",
+    "sha256": "3118557a9b0693f5366088efd5105f8d4a81cb0e5a7fb7ab610603aaa5bd6a95",
+    "bytes": 8594
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/integration/ConnectedProfileScreens.kt",
+    "sha256": "5f083366468ce79d6a309a62499bf8ad77c81aec5b0a4c353c2121c473078d78",
+    "bytes": 8848
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/integration/ConnectedGoLiveSetup.kt",
+    "sha256": "113b9811b859f9eb4ad8731d12ba2632b592f489b756a9947289670323d6782b",
+    "bytes": 22725
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/integration/ConnectedConnectionsStudio.kt",
+    "sha256": "77f2c8471b5a519dd6c08218711d6139c0f3119f4292be494ac8ec41302a477f",
+    "bytes": 21162
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch4/Phase12ActiveBroadcast.kt",
+    "sha256": "3e1a3ad10de54a979d5fcbc9d3d4c1c88876585ba83bb4b7188e480d55164f5d",
+    "bytes": 19932
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/system/Phase34To39LockedScreens.kt",
+    "sha256": "01feae8e23f381cf64f7ced4752d75d70dc7798ebe9d0926f14245ee400e482b",
+    "bytes": 36221
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/activity/ActivityScreen.kt",
+    "sha256": "94ba414af47d16a92fd18da43aa2f3ad6761068a76945829e4819f26f6653d50",
+    "bytes": 1221
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/connections/Phase10ConnectionsScreens.kt",
+    "sha256": "b66cd67e8c9057aa3ef62f97d75683f09dd3d1771e32f6c3517ac1d181ecf9fa",
+    "bytes": 36171
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/scenes/ScenesScreen.kt",
+    "sha256": "9d0f43277671b25286a8591593185d4dfcbc1aad7122a99ca9e236523773adeb",
+    "bytes": 3211
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/live/Phase13To16LockedScreens.kt",
+    "sha256": "ee5b06d939da4a314420635b30d5460b6350342deb902caa656cefa5f290e279",
+    "bytes": 79492
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/home/ConnectedHomeScreen.kt",
+    "sha256": "c1fe5e5187da17144cf19c731b8070ec07daec116c574ba65cb6d8eeab28328e",
+    "bytes": 18641
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/placeholder/PlaceholderScreen.kt",
+    "sha256": "42427f6a85d3a1a07c04fc3909e2b5e254aa7e9f6e7829bf97458559b9581079",
+    "bytes": 1398
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/batch2/ConnectionSupportScreens.kt",
+    "sha256": "aa26d469c17c2797436670fc198f172f5daaf4c2c311a1df900d3c0a5c94713a",
+    "bytes": 3781
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/integration/MobileBackendApi.kt",
+    "sha256": "2e713db1625b740ee3d76d2b4a773908d3d8781e92970fa14454d954da0e846c",
+    "bytes": 24477
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/integration/MobileIntegrationState.kt",
+    "sha256": "e2743908a1c4243f65f9e4663034fd15b4965b9d67d0b78007cfff17f08bb0f9",
+    "bytes": 47262
+  }
+]

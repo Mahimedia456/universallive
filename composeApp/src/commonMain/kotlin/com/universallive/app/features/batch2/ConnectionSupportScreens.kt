@@ -53,7 +53,7 @@ fun ChannelPickerScreen(onBack: () -> Unit) {
 @Composable
 fun ConnectionTestScreen(onBack: () -> Unit) {
     Batch2Page("Connection Test", "Checking the publish route without exposing stream credentials.", onBack) {
-        StepStatus("Backend connection", "Passed")
+        StepStatus("Service connection", "Passed")
         StepStatus("Credentials", "Configured")
         StepStatus("Destination", "Ready")
         InfoCard("Connection ready", "This destination is ready for a live broadcast.", "READY")

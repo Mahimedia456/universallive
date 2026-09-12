@@ -12,7 +12,7 @@ import com.universallive.app.theme.*
 
 @Composable
 fun OfflineScreen(onRetry: () -> Unit, onHome: () -> Unit) {
-    SettingsPage("You're Offline", "Universal Live cannot reach backend services.") {
+    SettingsPage("You're Offline", "Universal Live cannot reach its online services.") {
         SettingCard(
             "No internet connection",
             "Local scene editing and some saved settings may remain available. Live destinations and account sync require internet.",

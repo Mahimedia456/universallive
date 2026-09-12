@@ -458,7 +458,7 @@ fun Phase28EditProfileScreen(
             Text(displayName.take(1).ifBlank { "U" }.uppercase(), color = AppPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
-        Text("Profile photo sync will be connected in the backend/storage phase.", color = AppTextMuted, fontSize = 11.sp)
+        Text("Profile photos are synchronized when an uploaded avatar is available for your account.", color = AppTextMuted, fontSize = 11.sp)
         Spacer(Modifier.height(18.dp))
 
         UlTextField(displayName, { displayName = it }, "Display name")
@@ -655,7 +655,7 @@ fun Phase30BillingScreen(
         UlCard {
             Text("SECURE MOBILE BILLING", color = AppPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("Actual charges, receipts, renewal dates and payment instruments will be supplied by the app-store purchase layer and backend verification phase.", color = AppTextSecondary, fontSize = 12.sp)
+            Text("Charges, receipts and renewal details are shown from verified store purchase records.", color = AppTextSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -672,7 +672,7 @@ fun Phase30PaymentMethodsScreen(
         UlCard {
             Text("Store billing", color = AppText, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("No card numbers are stored in the mobile UI. Payment sources will be returned by Google Play / App Store billing once the billing integration phase is connected.", color = AppTextSecondary, fontSize = 12.sp)
+            Text("Universal Live does not store card numbers in the mobile app. Payment details are managed by Google Play or the App Store.", color = AppTextSecondary, fontSize = 12.sp)
         }
         Spacer(Modifier.height(14.dp))
         UlPrimaryButton("View Membership Plans", onClick = { onRoute(AppRoute.Plans) })
@@ -895,7 +895,7 @@ fun Phase33AccountSettingsScreen(
         Spacer(Modifier.height(20.dp))
         Text("DANGER ZONE", color = AppLive, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        ActionRow("!", "Delete Account", "Permanently delete the account and backend-synced data", danger = true) {
+        ActionRow("!", "Delete Account", "Permanently delete the account and eligible synced data", danger = true) {
             onRoute(AppRoute.DeleteAccount)
         }
     }

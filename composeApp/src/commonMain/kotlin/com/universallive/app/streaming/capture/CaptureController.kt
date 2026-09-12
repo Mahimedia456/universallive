@@ -7,6 +7,13 @@ import androidx.compose.runtime.setValue
 enum class CaptureStatus { IDLE, REQUESTING_PERMISSION, STARTING, CAPTURING, STOPPING, ERROR }
 enum class PublishStatus { IDLE, CONNECTING, LIVE, RECONNECTING, ERROR, DISCONNECTED }
 enum class CaptureMode(val label: String) { ENTIRE_DEVICE("Entire device"), USER_CHOICE("Choose app / screen") }
+enum class VideoSourceMode(val label: String) { SCREEN("Screen / game"), CAMERA("Camera") }
+
+data class PublishTargetConfig(
+    val serverUrl: String,
+    val streamKey: String,
+    val targetName: String,
+)
 
 data class CaptureSnapshot(
     val status: CaptureStatus = CaptureStatus.IDLE,
@@ -76,7 +83,8 @@ class CaptureController(
     var requestedHeight: Int = 1080; private set
     var requestedFps: Int = 30; private set
     var requestedBitrateKbps: Int = 6800; private set
-    var requestedOrientation: String = "Landscape"; private set
+    var requestedOrientation: String = "Auto"; private set
+    var requestedPublishTargets: List<PublishTargetConfig> = emptyList(); private set
     var requestedRtmpServerUrl: String = ""; private set
     var requestedStreamKey: String = ""; private set
     var requestedTargetName: String = ""; private set
@@ -91,14 +99,30 @@ class CaptureController(
     var requestedSceneName: String = "Main"; private set
     var adaptiveBitrateEnabled: Boolean = true; private set
     var requestedCaptureMode: CaptureMode = CaptureMode.ENTIRE_DEVICE; private set
+    var requestedVideoSource: VideoSourceMode = VideoSourceMode.SCREEN; private set
 
     fun configureAudio(microphone: Boolean, internalAudio: Boolean) { requestedMicrophone = microphone; requestedInternalAudio = internalAudio }
     fun setCaptureMode(mode: CaptureMode) { requestedCaptureMode = mode }
+    fun setVideoSource(mode: VideoSourceMode) { requestedVideoSource = mode }
     fun configureVideo(width: Int, height: Int, fps: Int, bitrateKbps: Int, orientation: String) {
         requestedWidth = width; requestedHeight = height; requestedFps = fps; requestedBitrateKbps = bitrateKbps; requestedOrientation = orientation
     }
     fun configurePublish(serverUrl: String, streamKey: String, targetName: String) {
-        requestedRtmpServerUrl = serverUrl.trim(); requestedStreamKey = streamKey.trim(); requestedTargetName = targetName.trim()
+        configurePublishTargets(listOf(PublishTargetConfig(serverUrl, streamKey, targetName)))
+    }
+    fun configurePublishTargets(targets: List<PublishTargetConfig>) {
+        requestedPublishTargets = targets
+            .map { it.copy(serverUrl = it.serverUrl.trim(), streamKey = it.streamKey.trim(), targetName = it.targetName.trim()) }
+            .filter { it.serverUrl.isNotBlank() && it.streamKey.isNotBlank() }
+            .distinctBy { "${it.serverUrl}|${it.streamKey}" }
+        val first = requestedPublishTargets.firstOrNull()
+        requestedRtmpServerUrl = first?.serverUrl.orEmpty()
+        requestedStreamKey = first?.streamKey.orEmpty()
+        requestedTargetName = when (requestedPublishTargets.size) {
+            0 -> ""
+            1 -> first?.targetName.orEmpty()
+            else -> "${requestedPublishTargets.size} destinations"
+        }
     }
     fun configureFacecam(enabled: Boolean, lens: String, shape: String, x: Float, y: Float, size: Float, mirrored: Boolean) {
         requestedFacecamEnabled = enabled; requestedFacecamLens = lens; requestedFacecamShape = shape
@@ -123,10 +147,10 @@ class CaptureController(
             internalAudioRequested = requestedInternalAudio,
             encoderWidth = requestedWidth, encoderHeight = requestedHeight, encoderFps = requestedFps, encoderBitrateKbps = requestedBitrateKbps,
             audioMessage = if (requestedMicrophone || requestedInternalAudio) "Preparing audio capture" else "Audio capture disabled",
-            publishStatus = if (requestedRtmpServerUrl.isNotBlank() && requestedStreamKey.isNotBlank()) PublishStatus.CONNECTING else PublishStatus.IDLE,
-            publishMessage = if (requestedRtmpServerUrl.isNotBlank() && requestedStreamKey.isNotBlank()) "RTMP destination configured" else "No active RTMP destination",
+            publishStatus = if (requestedPublishTargets.isNotEmpty() || (requestedRtmpServerUrl.isNotBlank() && requestedStreamKey.isNotBlank())) PublishStatus.CONNECTING else PublishStatus.IDLE,
+            publishMessage = if (requestedPublishTargets.isNotEmpty()) "${requestedPublishTargets.size} RTMP destination${if (requestedPublishTargets.size == 1) "" else "s"} configured" else if (requestedRtmpServerUrl.isNotBlank() && requestedStreamKey.isNotBlank()) "RTMP destination configured" else "No active RTMP destination",
             publishTarget = requestedTargetName,
-            captureMode = requestedCaptureMode.label,
+            captureMode = if (requestedVideoSource == VideoSourceMode.CAMERA) requestedVideoSource.label else requestedCaptureMode.label,
         )
         requestStart()
     }

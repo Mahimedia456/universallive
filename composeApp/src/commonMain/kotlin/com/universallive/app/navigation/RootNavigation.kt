@@ -56,7 +56,7 @@ fun RootNavigation(
                 // visible long enough to feel deliberate instead of flashing for one frame.
                 val restored = coroutineScope {
                     val restoreTask = async { integrationState.restore() }
-                    delay(1600)
+                    delay(250)
                     restoreTask.await()
                 }
 
@@ -220,6 +220,7 @@ fun RootNavigation(
         )
         AppRoute.AudioCameraSetup -> Phase13AudioCameraScreen(
             streamState = streamState,
+            captureController = captureController,
             facecamState = facecamState,
             permissions = permissionSetupController,
             onRoute = onRouteChanged,
@@ -229,6 +230,7 @@ fun RootNavigation(
         AppRoute.SetupReview -> Phase13SetupReviewScreen(
             state = integrationState,
             streamState = streamState,
+            captureController = captureController,
             facecamState = facecamState,
             permissions = permissionSetupController,
             onStartPreflight = { onRouteChanged(AppRoute.Preflight) },
@@ -248,6 +250,7 @@ fun RootNavigation(
         AppRoute.PreflightDevices -> Phase14DeviceCheckScreen(
             state = integrationState,
             streamState = streamState,
+            captureController = captureController,
             facecamState = facecamState,
             permissions = permissionSetupController,
             onRoute = onRouteChanged,
@@ -262,6 +265,7 @@ fun RootNavigation(
         AppRoute.PreflightSuccess -> Phase14PreflightSuccessScreen(
             state = integrationState,
             streamState = streamState,
+            captureController = captureController,
             permissions = permissionSetupController,
             onGoLive = { onRouteChanged(AppRoute.Countdown) },
             onBack = { onRouteChanged(AppRoute.PreflightDestinations) },

@@ -388,7 +388,7 @@ fun LiveChatScreen(onBack: () -> Unit) {
             value = message,
             onValueChange = { message = it },
             label = "Message",
-            placeholder = "Chat posting will use platform API when connected",
+            placeholder = "Write a message",
         )
 
         UlPrimaryButton(
@@ -398,7 +398,7 @@ fun LiveChatScreen(onBack: () -> Unit) {
         )
 
         Text(
-            "Platform chat APIs are wired during backend integration. This screen already defines the final mobile UX.",
+            "Messages are available for destinations that expose supported live-chat access.",
             color = AppTextMuted,
             fontSize = 11.sp,
         )

@@ -166,6 +166,7 @@ data class DeviceStreamTelemetry(
 data class StreamRecoveryResult(
     val session: BroadcastSession,
     val publishConfig: PublishConfig?,
+    val publishConfigs: List<PublishConfig> = emptyList(),
     val recoveryAttempt: Int = 0,
     val recoverableUntil: String? = null,
 )

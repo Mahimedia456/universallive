@@ -108,7 +108,7 @@ fun CheckoutConfirmationScreen(
         )
 
         Text(
-            "Purchase execution and receipt verification are wired during the billing/backend integration stage.",
+            "Purchases are verified securely before membership access is updated.",
             color = AppTextMuted,
             fontSize = 11.sp,
         )

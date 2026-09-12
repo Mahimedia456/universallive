@@ -21,7 +21,7 @@ data class StreamConfig(
     val resolution: StreamResolution = StreamResolution.P1080,
     val fps: StreamFps = StreamFps.FPS30,
     val bitrateKbps: Int = 6800,
-    val orientation: StreamOrientation = StreamOrientation.Landscape,
+    val orientation: StreamOrientation = StreamOrientation.Auto,
     val microphoneEnabled: Boolean = true,
     val internalAudioEnabled: Boolean = true,
 ) {
