@@ -393,6 +393,19 @@ class MobileIntegrationState(
 
     var pendingConnectionPlatform: String by mutableStateOf("custom_rtmp")
         private set
+
+    var connectionsOpenedFromSettings: Boolean by mutableStateOf(false)
+        private set
+
+    fun beginConnectionsFlow(fromSettings: Boolean = false) {
+        connectionsOpenedFromSettings = fromSettings
+        error = null
+    }
+
+    fun finishConnectionsFlow() {
+        connectionsOpenedFromSettings = false
+    }
+
     var liveTitle: String by mutableStateOf("Tonight's Live Session")
     var liveDescription: String by mutableStateOf("")
     var livePrivacy: String by mutableStateOf("Public")

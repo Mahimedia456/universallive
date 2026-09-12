@@ -691,6 +691,11 @@ fun Phase31SettingsScreen(
     onRoute: (AppRoute) -> Unit,
     onDestination: (AppDestination) -> Unit,
 ) {
+    LaunchedEffect(Unit) { state.refreshConnections() }
+
+    val enabledDestinations = state.connections.count { it.isEnabled }
+    val readyDestinations = state.connections.count { it.isEnabled && it.readyToPublish }
+
     AppScaffold(
         title = "Settings",
         selected = AppDestination.Settings,
@@ -698,6 +703,111 @@ fun Phase31SettingsScreen(
     ) {
         Text("Customize Universal Live without losing sight of the broadcast.", color = AppTextSecondary, fontSize = 12.sp)
         Spacer(Modifier.height(15.dp))
+
+        UlCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Streaming Destinations", color = AppText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        if (state.connections.isEmpty()) {
+                            "Connect your first streaming destination."
+                        } else {
+                            "${state.connections.size} saved • $enabledDestinations enabled • $readyDestinations ready"
+                        },
+                        color = AppTextSecondary,
+                        fontSize = 11.sp,
+                    )
+                }
+                if (state.accountLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = AppPrimary)
+                } else {
+                    UlStatusBadge(if (readyDestinations > 0) "$readyDestinations READY" else "SETUP", if (readyDestinations > 0) AppSuccess else AppPrimary)
+                }
+            }
+
+            if (state.connections.isNotEmpty()) {
+                Spacer(Modifier.height(13.dp))
+                state.connections.take(4).forEachIndexed { index, item ->
+                    val status = when {
+                        !item.isEnabled -> "DISABLED"
+                        item.readyToPublish -> "READY"
+                        item.credentialConfigured -> "TEST"
+                        else -> "SETUP"
+                    }
+                    val statusColor = when {
+                        !item.isEnabled -> AppTextMuted
+                        item.readyToPublish -> AppSuccess
+                        else -> AppPrimary
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(AppSurfaceInteractive)
+                            .clickable {
+                                state.beginConnectionsFlow(fromSettings = true)
+                                state.selectedConnection = item
+                                onRoute(AppRoute.ConnectionDetail)
+                            }
+                            .padding(horizontal = 13.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppPrimary.copy(alpha = .10f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(item.platform.take(1).uppercase(), color = AppPrimary, fontWeight = FontWeight.Black)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.displayName, color = AppText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(item.platform.replace('_', ' ').uppercase(), color = AppTextMuted, fontSize = 9.sp)
+                        }
+                        UlStatusBadge(status, statusColor)
+                    }
+                    if (index != state.connections.take(4).lastIndex) Spacer(Modifier.height(7.dp))
+                }
+
+                if (state.connections.size > 4) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "+${state.connections.size - 4} more destination${if (state.connections.size - 4 == 1) "" else "s"}",
+                        color = AppTextMuted,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(13.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        state.beginConnectionsFlow(fromSettings = true)
+                        onRoute(AppRoute.Connections)
+                    },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, AppBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppText),
+                ) {
+                    Text("Manage", fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = {
+                        state.beginConnectionsFlow(fromSettings = true)
+                        onRoute(AppRoute.AddConnection)
+                    },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppPrimary, contentColor = Color.White),
+                ) {
+                    Text("Add New", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
         ActionRow("A", "Account Settings", "Profile, password, session and account controls") { onRoute(AppRoute.AccountSettings) }
         Spacer(Modifier.height(9.dp))
         ActionRow("S", "Streaming Settings", "Resolution, FPS, bitrate, orientation and audio") { onRoute(AppRoute.StreamingSettings) }

@@ -117,7 +117,18 @@ fun RootNavigation(
             onRoute = onRouteChanged,
         )
 
-        AppRoute.Connections -> Phase10ConnectionsScreen(integrationState, onRouteChanged, home)
+        AppRoute.Connections -> Phase10ConnectionsScreen(
+            state = integrationState,
+            onRoute = onRouteChanged,
+            onBack = {
+                if (integrationState.connectionsOpenedFromSettings) {
+                    integrationState.finishConnectionsFlow()
+                    onRouteChanged(AppRoute.SettingsHub)
+                } else {
+                    home()
+                }
+            },
+        )
         AppRoute.AddConnection -> Phase11AddDestinationScreen(integrationState, onRouteChanged, connections)
         AppRoute.PlatformAuthorization -> PlatformAuthorizationScreen(onRouteChanged) { onRouteChanged(AppRoute.AddConnection) }
         AppRoute.ChannelPicker -> ChannelPickerScreen { onRouteChanged(AppRoute.PlatformAuthorization) }
