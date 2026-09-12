@@ -87,6 +87,22 @@ data class ConnectionTestResult(
     val status: String,
 )
 
+data class PlatformOAuthStart(
+    val platform: String,
+    val authorizationUrl: String,
+    val expiresAt: String? = null,
+)
+
+data class PlatformOAuthStatus(
+    val platform: String,
+    val connected: Boolean = false,
+    val connectionId: String? = null,
+    val displayName: String? = null,
+    val publishReady: Boolean = false,
+    val status: String = "disconnected",
+    val message: String = "",
+)
+
 data class CloudScene(
     val id: String,
     val name: String,
@@ -401,6 +417,9 @@ interface MobileBackendApi {
     ): Result<StreamingConnection>
     suspend fun deleteConnection(id: String): Result<Unit>
     suspend fun testConnection(id: String): Result<ConnectionTestResult>
+    suspend fun startPlatformOAuth(platform: String): Result<PlatformOAuthStart>
+    suspend fun platformOAuthStatus(platform: String): Result<PlatformOAuthStatus>
+    suspend fun disconnectPlatformOAuth(platform: String): Result<Unit>
     suspend fun saveRtmpCredential(
         connectionId: String,
         serverUrl: String,
@@ -551,6 +570,9 @@ class OfflineMobileBackendApi : MobileBackendApi {
     override suspend fun updateConnection(id: String, displayName: String?, isEnabled: Boolean?, isDefault: Boolean?) = unavailable<StreamingConnection>()
     override suspend fun deleteConnection(id: String) = unavailable<Unit>()
     override suspend fun testConnection(id: String) = unavailable<ConnectionTestResult>()
+    override suspend fun startPlatformOAuth(platform: String) = unavailable<PlatformOAuthStart>()
+    override suspend fun platformOAuthStatus(platform: String) = unavailable<PlatformOAuthStatus>()
+    override suspend fun disconnectPlatformOAuth(platform: String) = unavailable<Unit>()
     override suspend fun saveRtmpCredential(connectionId: String, serverUrl: String, streamKey: String) = unavailable<Unit>()
     override suspend fun publishConfig(connectionId: String) = unavailable<PublishConfig>()
     override suspend fun scenes() = unavailable<List<CloudScene>>()

@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -78,10 +79,10 @@ import kotlinx.coroutines.launch
  * - Phase 11: Add Destination
  * - Phase 12: Destination Details / Edit
  *
- * Platform OAuth/account linking is intentionally not faked here. Until the backend
- * adds platform-specific OAuth APIs, YouTube/Facebook/Twitch/TikTok use the existing
- * secure RTMP/RTMPS credential contract. The UI boundary is already isolated so the
- * OAuth implementation can replace only the connection action later.
+ * Provider destinations expose two explicit connection paths:
+ * - secure provider OAuth/account linking
+ * - manual Custom RTMP using stream URL + stream key
+ * Raw RTMP fields are never shown in the OAuth path.
  */
 
 private data class PlatformSpec(
@@ -418,6 +419,12 @@ fun Phase11PlatformConnectScreen(
 ) {
     val platform = state.pendingConnectionPlatform
     val spec = platformCatalog.firstOrNull { it.key == platform } ?: platformCatalog.last()
+    val uriHandler = LocalUriHandler.current
+    var mode by remember(platform) { mutableStateOf(if (platform == "custom_rtmp") "custom" else "choose") }
+    var oauthBusy by remember(platform) { mutableStateOf(false) }
+    var oauthMessage by remember(platform) { mutableStateOf<String?>(null) }
+    var oauthConnected by remember(platform) { mutableStateOf(false) }
+    var oauthPublishReady by remember(platform) { mutableStateOf(false) }
     var name by remember(platform) { mutableStateOf(if (platform == "custom_rtmp") "My RTMP Server" else "${spec.title} Main") }
     var server by remember(platform) { mutableStateOf(state.defaultServerUrl(platform).ifBlank { spec.defaultServer }) }
     var streamKey by remember(platform) { mutableStateOf("") }
@@ -425,11 +432,11 @@ fun Phase11PlatformConnectScreen(
     val scope = rememberCoroutineScope()
 
     ConnectionsPage(
-        title = if (platform == "custom_rtmp") "Custom RTMP" else "${spec.title} Connect",
+        title = if (platform == "custom_rtmp") "Custom RTMP" else "Connect ${spec.title}",
         subtitle = if (platform == "custom_rtmp") {
             "Connect to any RTMP-compatible streaming service."
         } else {
-            "Connect ${spec.title} with the encoder credentials provided by the platform."
+            "Connect your account securely, or use manual RTMP credentials for this platform."
         },
         eyebrow = "CONNECT ${spec.title}",
         onBack = onBack,
@@ -443,14 +450,169 @@ fun Phase11PlatformConnectScreen(
                 Column(Modifier.weight(1f)) {
                     Text(spec.title, color = AppText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(7.dp).clip(CircleShape).background(AppWarning))
+                        Box(
+                            Modifier.size(7.dp).clip(CircleShape).background(
+                                if (oauthConnected) AppSuccess else AppWarning,
+                            ),
+                        )
                         Spacer(Modifier.width(6.dp))
-                        Text("Not connected", color = AppTextSecondary, fontSize = 11.sp)
+                        Text(
+                            if (oauthConnected) "Account connected" else "Not connected",
+                            color = if (oauthConnected) AppSuccess else AppTextSecondary,
+                            fontSize = 11.sp,
+                        )
                     }
                 }
             }
         }
         Spacer(Modifier.height(14.dp))
+
+        if (platform != "custom_rtmp" && mode == "choose") {
+            Text("Choose connection method", color = AppText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(10.dp))
+
+            Surface(
+                color = AppPrimary.copy(alpha = .08f),
+                border = BorderStroke(1.dp, AppPrimary.copy(alpha = .35f)),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !oauthBusy) { mode = "oauth" },
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Connect with ${spec.title}", color = AppText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Sign in through ${spec.title}. Universal Live receives provider tokens on the backend; your password is never shared with Universal Live.",
+                        color = AppTextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            Surface(
+                color = AppSurface,
+                border = BorderStroke(1.dp, AppBorder),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { mode = "custom" },
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Use Custom RTMP", color = AppText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Use the stream URL and stream key from ${spec.title}. Manual URL/key fields are shown only in this mode.",
+                        color = AppTextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp,
+                    )
+                }
+            }
+            return@ConnectionsPage
+        }
+
+        if (platform != "custom_rtmp" && mode == "oauth") {
+            Surface(
+                color = AppPrimary.copy(alpha = .07f),
+                border = BorderStroke(1.dp, AppPrimary.copy(alpha = .25f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("Secure OAuth connection", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Universal Live opens ${spec.title} in your browser. Login and approval happen on the provider website. OAuth tokens are encrypted and stored only by the backend.",
+                        color = AppTextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+
+            oauthMessage?.let { message ->
+                Surface(
+                    color = (if (oauthConnected) AppSuccess else AppWarning).copy(alpha = .09f),
+                    border = BorderStroke(1.dp, (if (oauthConnected) AppSuccess else AppWarning).copy(alpha = .30f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            if (oauthConnected) "${spec.title} connected" else "OAuth status",
+                            color = if (oauthConnected) AppSuccess else AppWarning,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(message, color = AppTextSecondary, fontSize = 11.sp, lineHeight = 16.sp)
+                        if (oauthConnected && !oauthPublishReady) {
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                "Account linking succeeded, but this provider has not supplied an encoder ingest route. Custom RTMP is still available below.",
+                                color = AppTextMuted,
+                                fontSize = 10.sp,
+                                lineHeight = 15.sp,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (!oauthConnected) {
+                UlPrimaryButton(
+                    "Continue with ${spec.title}",
+                    onClick = {
+                        scope.launch {
+                            oauthBusy = true
+                            oauthMessage = null
+                            val result = state.api.startPlatformOAuth(platform)
+                            result.onSuccess { start ->
+                                runCatching { uriHandler.openUri(start.authorizationUrl) }
+                                    .onFailure { oauthMessage = "Could not open the provider login page." }
+                            }.onFailure { oauthMessage = it.message ?: "Could not start OAuth." }
+                            oauthBusy = false
+                        }
+                    },
+                    loading = oauthBusy,
+                    enabled = !oauthBusy,
+                )
+                Spacer(Modifier.height(9.dp))
+            }
+
+            UlSecondaryButton(
+                if (oauthConnected) "Refresh Connection" else "Check Connection",
+                onClick = {
+                    scope.launch {
+                        oauthBusy = true
+                        val result = state.api.platformOAuthStatus(platform)
+                        result.onSuccess { status ->
+                            oauthConnected = status.connected
+                            oauthPublishReady = status.publishReady
+                            oauthMessage = status.message.ifBlank {
+                                if (status.connected) "Account connected." else "Authorization is not complete yet."
+                            }
+                            if (status.connected) {
+                                state.refreshConnections()
+                                if (status.publishReady) onSaved()
+                            }
+                        }.onFailure {
+                            oauthMessage = it.message ?: "Could not check OAuth status."
+                        }
+                        oauthBusy = false
+                    }
+                },
+                enabled = !oauthBusy,
+            )
+            Spacer(Modifier.height(9.dp))
+            UlSecondaryButton("Use Custom RTMP Instead", onClick = { mode = "custom" })
+            return@ConnectionsPage
+        }
 
         if (platform != "custom_rtmp") {
             Surface(
@@ -460,22 +622,24 @@ fun Phase11PlatformConnectScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Secure destination setup", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Custom RTMP for ${spec.title}", color = AppPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Use the secure RTMP details provided by your platform. Saved credentials stay protected and are requested only when you publish.",
+                        "Manual stream URL and stream key are used only in Custom RTMP mode. You can switch back to provider login at any time.",
                         color = AppTextSecondary,
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
                     )
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            UlSecondaryButton("Use ${spec.title} Login Instead", onClick = { mode = "oauth" })
             Spacer(Modifier.height(14.dp))
         }
 
         UlTextField(name, { name = it }, "Connection name")
         Spacer(Modifier.height(10.dp))
-        UlTextField(server, { server = it }, "Server URL", placeholder = "rtmps://...")
+        UlTextField(server, { server = it }, "Stream URL", placeholder = "rtmps://...")
         Spacer(Modifier.height(10.dp))
         UlTextField(
             streamKey,
@@ -495,7 +659,7 @@ fun Phase11PlatformConnectScreen(
             Text("Your stream key stays private", color = AppText, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Your stream key is stored securely and retrieved only when this authenticated device prepares a live broadcast.",
+                "Your stream key is encrypted by the backend and retrieved only when this authenticated device prepares a live broadcast.",
                 color = AppTextMuted,
                 fontSize = 11.sp,
                 lineHeight = 17.sp,
@@ -503,17 +667,11 @@ fun Phase11PlatformConnectScreen(
         }
 
         Spacer(Modifier.height(15.dp))
-        UlSecondaryButton(
-            "Validate Fields",
-            onClick = { state.clearError() },
-        )
-        Spacer(Modifier.height(9.dp))
         UlPrimaryButton(
-            "Save Destination",
+            "Save Custom RTMP",
             onClick = {
                 scope.launch {
                     if (state.saveRtmpConnection(platform, name, server, streamKey)) {
-                        // refreshConnections() inside saveRtmpConnection updates selectedConnection.
                         onSaved()
                     }
                 }

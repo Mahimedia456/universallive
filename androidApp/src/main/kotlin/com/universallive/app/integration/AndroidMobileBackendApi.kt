@@ -533,6 +533,52 @@ class AndroidMobileBackendApi(
         )
     }
 
+    override suspend fun startPlatformOAuth(platform: String): Result<PlatformOAuthStart> = runCatching {
+        val response = request(
+            "streaming/oauth/${platform.trim().lowercase()}/start",
+            method = "POST",
+            authenticated = true,
+            body = "{}",
+        )
+        val json = JSONObject(response)
+        val authorizationUrl = json.optString("authorizationUrl")
+        if (authorizationUrl.isBlank()) {
+            throw IllegalStateException("OAuth authorization URL was not returned by the backend.")
+        }
+        PlatformOAuthStart(
+            platform = json.optString("platform", platform),
+            authorizationUrl = authorizationUrl,
+            expiresAt = json.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" },
+        )
+    }
+
+    override suspend fun platformOAuthStatus(platform: String): Result<PlatformOAuthStatus> = runCatching {
+        val response = request(
+            "streaming/oauth/${platform.trim().lowercase()}/status",
+            authenticated = true,
+        )
+        val json = JSONObject(response)
+        PlatformOAuthStatus(
+            platform = json.optString("platform", platform),
+            connected = json.optBoolean("connected", false),
+            connectionId = json.optString("connectionId").takeIf { it.isNotBlank() && it != "null" },
+            displayName = json.optString("displayName").takeIf { it.isNotBlank() && it != "null" },
+            publishReady = json.optBoolean("publishReady", false),
+            status = json.optString("status", "disconnected"),
+            message = json.optString("message"),
+        )
+    }
+
+    override suspend fun disconnectPlatformOAuth(platform: String): Result<Unit> = runCatching {
+        request(
+            "streaming/oauth/${platform.trim().lowercase()}/disconnect",
+            method = "POST",
+            authenticated = true,
+            body = "{}",
+        )
+        Unit
+    }
+
     override suspend fun saveRtmpCredential(
         connectionId: String,
         serverUrl: String,

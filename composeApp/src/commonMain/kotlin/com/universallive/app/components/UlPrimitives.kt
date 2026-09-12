@@ -55,9 +55,11 @@ fun UlSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     OutlinedButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.fillMaxWidth().height(54.dp),
         shape = RoundedCornerShape(UlRadius.control),
         border = BorderStroke(1.dp, AppPrimary.copy(alpha = .45f)),

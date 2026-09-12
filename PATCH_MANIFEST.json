@@ -1,0 +1,14 @@
+[
+  {
+    "path": "OAUTH_ENABLED_PARAM_HOTFIX_README.txt",
+    "sha256": "c8657d5a00894be2ac60ed26a2f9246fb9189b8ec6043207930e4b3579d51693"
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/components/UlPrimitives.kt",
+    "sha256": "2254eaee2a857503d45fcd20949afaf0fbe42a7fa012e10aa3d2d84f598f304c"
+  },
+  {
+    "path": "tools/verify-oauth-enabled-hotfix.ps1",
+    "sha256": "f3842a13c2e4d3dfc3acf2aeb4b79fe73a89e2377b99430eb933ff420f9a457c"
+  }
+]
