@@ -798,8 +798,7 @@ fun Phase14NetworkCheckScreen(
         checked = false
         scope.launch {
             val cfg = streamState.config
-            val publishReady = state.prepareSelectedPublishConfig()
-            ok = publishReady && state.runStreamPreflight(
+            ok = state.runStreamPreflight(
                 width = cfg.resolution.width,
                 height = cfg.resolution.height,
                 fps = cfg.fps.value,

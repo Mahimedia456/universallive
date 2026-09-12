@@ -79,7 +79,7 @@ class AndroidMobileBackendApi(
             (parsed.contains("Cannot PUT /api/v1/streams/", ignoreCase = true) ||
                 parsed.contains("Cannot POST /api/v1/streams/", ignoreCase = true))
         ) {
-            "This app is connected to an older backend deployment. Deploy/restart the final Universal Live backend, then run preflight again."
+            "The deployed backend does not expose the required stream lifecycle route. Redeploy the latest backend and verify /api/v1/streams/runtime before retrying."
         } else {
             parsed
         }
@@ -930,6 +930,20 @@ class AndroidMobileBackendApi(
                 body = body.toString(),
             )
         )
+        val checks = buildList {
+            val array = json.optJSONArray("checks") ?: org.json.JSONArray()
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                add(
+                    StreamPreflightCheck(
+                        key = item.optString("key"),
+                        ok = item.optBoolean("ok", false),
+                        required = item.optBoolean("required", true),
+                        message = item.optString("message"),
+                    )
+                )
+            }
+        }
         val warnings = buildList {
             val array = json.optJSONArray("warnings") ?: org.json.JSONArray()
             for (i in 0 until array.length()) add(array.optString(i))
@@ -939,6 +953,7 @@ class AndroidMobileBackendApi(
             ready = json.optBoolean("ready", false),
             status = json.optString("status", "failed"),
             expiresAt = json.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" },
+            checks = checks,
             warnings = warnings,
         )
     }

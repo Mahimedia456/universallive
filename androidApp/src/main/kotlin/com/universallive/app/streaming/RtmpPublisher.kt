@@ -51,6 +51,7 @@ class RtmpPublisher(
     @Volatile private var startRequested = false
     @Volatile private var videoInfoReady = false
     @Volatile private var connectionStarted = false
+    @Volatile private var awaitingFirstKeyframe = true
     @Volatile private var targetFps = 30
     @Volatile private var publishClockStartNs = 0L
 
@@ -75,6 +76,7 @@ class RtmpPublisher(
         stoppedByUser = false
         startRequested = true
         connectionStarted = false
+        awaitingFirstKeyframe = true
         targetFps = fps.coerceIn(15, 60)
         reconnectCount = 0
         lastVideoSentAtMs = 0L
@@ -117,6 +119,15 @@ class RtmpPublisher(
     fun sendVideo(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (!client.isStreaming || info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
 
+        // Strict ingests must begin decoding from an IDR/keyframe. Do not let P/B frames race
+        // ahead of the sync-frame request immediately after RTMP connect/reconnect. SPS/PPS is
+        // already configured through setVideoInfo before client.connect().
+        if (awaitingFirstKeyframe) {
+            if (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME == 0) return
+            awaitingFirstKeyframe = false
+            resetRealtimeClock()
+        }
+
         // Keep upload cadence tied to wall clock. This prevents a buffered MediaCodec drain from
         // transmitting several seconds of video during one real second.
         val ptsUs = paceVideoAndGetPtsUs()
@@ -143,7 +154,7 @@ class RtmpPublisher(
     }
 
     fun sendAudio(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        if (!client.isStreaming || info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
+        if (!client.isStreaming || awaitingFirstKeyframe || info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
 
         val dup = buffer.duplicate()
         dup.position(info.offset)
@@ -276,13 +287,15 @@ class RtmpPublisher(
     }
 
     override fun onConnectionSuccess() {
+        awaitingFirstKeyframe = true
         resetRealtimeClock()
-        onState(State(Status.LIVE, "Ingest accepted • realtime-paced H.264/AAC active"))
+        onState(State(Status.LIVE, "Ingest accepted • waiting for first H.264 keyframe"))
     }
 
     override fun onConnectionFailed(reason: String) {
         if (!stoppedByUser && client.shouldRetry(reason)) {
             reconnectCount += 1
+            awaitingFirstKeyframe = true
             resetRealtimeClock()
             onState(State(Status.RECONNECTING, "Connection lost • retrying ingest"))
             client.reConnect(1500)
@@ -294,6 +307,7 @@ class RtmpPublisher(
 
     override fun onDisconnect() {
         connectionStarted = false
+        awaitingFirstKeyframe = true
         resetRealtimeClock()
         if (!stoppedByUser) onState(State(Status.DISCONNECTED, "RTMP connection closed"))
     }

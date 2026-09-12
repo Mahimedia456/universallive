@@ -174,25 +174,66 @@ export class StreamLifecycleService {
         ? new Date(credential.token_expires_at).getTime() <= Date.now()
         : false;
 
+      let routeReady = enabled && credentialReady && !tokenExpired;
+      let routeMessage = !enabled
+        ? `${connection.display_name || 'Destination'} is disabled`
+        : !credentialReady
+          ? `${connection.display_name || 'Destination'} has no RTMP credentials`
+          : tokenExpired
+            ? `${connection.display_name || 'Destination'} credentials have expired`
+            : `${connection.display_name || 'Destination'} publish route is ready`;
+      let routeProtocol: string | null = null;
+      let routeHost: string | null = null;
+
+      // A credential row by itself is not enough. Validate that the encrypted values can actually
+      // be decrypted with the deployed STREAM_SECRET_MASTER_KEY and normalized into a native
+      // RTMP/RTMPS publish contract. This catches the production failures that previously surfaced
+      // only on the phone after the preflight screen.
+      if (routeReady) {
+        try {
+          const publish = await this.rtmp.publishConfig(token, connectionId);
+          const parsed = routeMetadata(publish?.serverUrl);
+          routeProtocol = parsed.protocol;
+          routeHost = parsed.host;
+        } catch (error: any) {
+          routeReady = false;
+          routeMessage = `${connection.display_name || 'Destination'} publish route error: ${safeFailureMessage(error)}`;
+        }
+      }
+
       checks.push({
         key: `destination:${connectionId}`,
-        ok: enabled && credentialReady && !tokenExpired,
+        ok: routeReady,
         required: true,
-        message: !enabled
-          ? `${connection.display_name || 'Destination'} is disabled`
-          : !credentialReady
-            ? `${connection.display_name || 'Destination'} has no RTMP credentials`
-            : tokenExpired
-              ? `${connection.display_name || 'Destination'} credentials have expired`
-              : `${connection.display_name || 'Destination'} is ready`,
+        message: routeMessage,
         metadata: {
           platform: connection.platform,
           credentialVersion: credential?.key_version || null,
           lastTestedAt: connection.last_tested_at || null,
+          routeProtocol,
+          routeHost,
         },
       });
 
-      if (connection.last_health_status && connection.last_health_status !== 'ready') {
+      const healthNow = new Date().toISOString();
+      await this.db.adminRest(
+        `ul_streaming_connections?id=eq.${encodeURIComponent(connectionId)}&user_id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: routeReady ? 'connected' : 'disconnected',
+            last_health_status: routeReady ? 'ready' : 'needs_attention',
+            last_health_checked_at: healthNow,
+            last_tested_at: healthNow,
+            last_success_at: routeReady ? healthNow : connection.last_success_at,
+            last_error_code: routeReady ? null : 'PUBLISH_ROUTE_INVALID',
+            last_error_message: routeReady ? null : routeMessage,
+            updated_at: healthNow,
+          }),
+        },
+      );
+
+      if (connection.last_health_status && connection.last_health_status !== 'ready' && routeReady) {
         warnings.push(
           `${connection.display_name || 'Destination'} last health state: ${connection.last_health_status}`,
         );
@@ -714,6 +755,21 @@ export class StreamLifecycleService {
       }),
     });
   }
+}
+
+function safeFailureMessage(error: any): string {
+  const raw = String(error?.response?.message || error?.message || 'publish route validation failed').trim();
+  // Never leak encrypted/plain stream keys through a preflight response.
+  return raw.replace(/(stream[_ -]?key\s*[:=]\s*)\S+/gi, '$1••••').slice(0, 220);
+}
+
+function routeMetadata(serverUrl: unknown): { protocol: string | null; host: string | null } {
+  const value = String(serverUrl || '').trim();
+  const match = value.match(/^(rtmps?):\/\/([^/]+)/i);
+  return {
+    protocol: match?.[1]?.toLowerCase() || null,
+    host: match?.[2]?.split(':')[0] || null,
+  };
 }
 
 function uniqueStrings(raw: unknown): string[] {

@@ -141,11 +141,19 @@ data class BroadcastSession(
 )
 
 
+data class StreamPreflightCheck(
+    val key: String,
+    val ok: Boolean,
+    val required: Boolean,
+    val message: String,
+)
+
 data class StreamPreflightResult(
     val id: String,
     val ready: Boolean,
     val status: String,
     val expiresAt: String? = null,
+    val checks: List<StreamPreflightCheck> = emptyList(),
     val warnings: List<String> = emptyList(),
 )
 

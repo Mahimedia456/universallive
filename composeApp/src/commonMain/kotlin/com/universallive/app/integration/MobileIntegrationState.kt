@@ -635,11 +635,8 @@ class MobileIntegrationState(
         loading = true
         error = null
         return try {
-            if (preparedPublishConfigs.isEmpty()) {
-                val configs = connectionIds.map { id -> api.publishConfig(id).getOrThrow() }
-                preparedPublishConfigs = configs
-                preparedPublishConfig = configs.firstOrNull()
-            }
+            // Validate the backend-owned route first. This produces precise preflight checks and
+            // avoids turning a credential/deployment issue into a generic local publish error.
             api.saveStreamDraft(
                 title = liveTitle,
                 description = liveDescription,
@@ -669,9 +666,20 @@ class MobileIntegrationState(
             ).getOrThrow()
             streamPreflight = result
             if (!result.ready) {
-                error = result.warnings.firstOrNull() ?: "Backend stream preflight did not pass."
+                error = result.checks.firstOrNull { it.required && !it.ok }?.message
+                    ?: result.warnings.firstOrNull()
+                    ?: "Backend stream preflight did not pass."
+                preparedPublishConfig = null
+                preparedPublishConfigs = emptyList()
+                false
+            } else {
+                // Secrets are requested only after the backend has verified ownership, entitlement,
+                // credential decryption and RTMP/RTMPS route validity.
+                val configs = connectionIds.map { id -> api.publishConfig(id).getOrThrow() }
+                preparedPublishConfigs = configs
+                preparedPublishConfig = configs.firstOrNull()
+                configs.isNotEmpty()
             }
-            result.ready
         } catch (t: Throwable) {
             streamPreflight = null
             error = messageOf(t)

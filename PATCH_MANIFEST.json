@@ -1,14 +1,52 @@
 [
   {
-    "path": "OAUTH_ENABLED_PARAM_HOTFIX_README.txt",
-    "sha256": "c8657d5a00894be2ac60ed26a2f9246fb9189b8ec6043207930e4b3579d51693"
+    "path": "PREFLIGHT_PUBLISH_RUNTIME_FINAL_README.txt",
+    "sha256": "774172b209f84a3b9ac2a4c62e2ea84a4b7e960cfd6fd6ba56000825cc801110",
+    "size": 3475
   },
   {
-    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/components/UlPrimitives.kt",
-    "sha256": "2254eaee2a857503d45fcd20949afaf0fbe42a7fa012e10aa3d2d84f598f304c"
+    "path": "androidApp/src/main/kotlin/com/universallive/app/integration/AndroidMobileBackendApi.kt",
+    "sha256": "aef2ca4428fc5f3fb9720144334b0cd993a3b2850851ae098efc364f8eef9918",
+    "size": 63985
   },
   {
-    "path": "tools/verify-oauth-enabled-hotfix.ps1",
-    "sha256": "f3842a13c2e4d3dfc3acf2aeb4b79fe73a89e2377b99430eb933ff420f9a457c"
+    "path": "androidApp/src/main/kotlin/com/universallive/app/streaming/RtmpPublisher.kt",
+    "sha256": "316b3817725330e4ee4d99349c76635dfe56b61bc667c3b9ab33ec1b1c7a93a6",
+    "size": 13440
+  },
+  {
+    "path": "backend/sql/final/0650_stream_preflight_publish_runtime_hardening.sql",
+    "sha256": "57d3219730b59c15cc1f767511ff32eea35710d8dcddcee13727cd000a2ff2ea",
+    "size": 3549
+  },
+  {
+    "path": "backend/src/stream-lifecycle/stream-lifecycle.controller.ts",
+    "sha256": "7c4a43bfcc3660845ea5e0ba2061e8acc54b3cf7dcbcc6704373db7d2c980b9f",
+    "size": 2133
+  },
+  {
+    "path": "backend/src/stream-lifecycle/stream-lifecycle.service.ts",
+    "sha256": "815f2a42bb8950a9d1da231a072e13b09f6948eeb7ae1932dd9badf8477949ec",
+    "size": 33062
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/features/live/Phase13To16LockedScreens.kt",
+    "sha256": "7682890ac39dd9dd80e1fbcf3645be512858ac732ec49f17cd6dec8c4f40ea30",
+    "size": 79408
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/integration/MobileBackendApi.kt",
+    "sha256": "e7d05a8870b20d5c680191882e90ff29f223a63cc407556ebb74c422c6c4badc",
+    "size": 25599
+  },
+  {
+    "path": "composeApp/src/commonMain/kotlin/com/universallive/app/integration/MobileIntegrationState.kt",
+    "sha256": "0f88f047b00fdc5214f79cd819b2e38cb9804b977f964cacdc2c2e902fd2ff24",
+    "size": 48144
+  },
+  {
+    "path": "tools/verify-stream-runtime-final.ps1",
+    "sha256": "6b1a5817bf1b4c2ef3f993d66d17570986ed0853f0644b51421beec9eb9724c2",
+    "size": 2665
   }
 ]

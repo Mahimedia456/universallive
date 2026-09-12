@@ -24,6 +24,17 @@ export class StreamLifecycleController {
     return this.service.clearDraft(bearerToken(auth));
   }
 
+  @Get('runtime')
+  runtime() {
+    return {
+      service: 'universal-live-stream-lifecycle',
+      contractVersion: 2,
+      preflight: true,
+      multiDestination: true,
+      publishRouteValidation: true,
+    };
+  }
+
   @Post('preflight')
   preflight(
     @Headers('authorization') auth: string | undefined,
