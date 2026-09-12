@@ -1,277 +1,60 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Param,
-  Patch,
-  Post,
-} from '@nestjs/common';
-
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, Delete } from '@nestjs/common';
+import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { AdminConsoleService } from './admin-console.service';
-
-@Controller('admin-console')
+@Controller('admin')
+@UseGuards(AdminJwtGuard)
 export class AdminConsoleController {
-  constructor(private readonly admin: AdminConsoleService) {}
+ constructor(private readonly service:AdminConsoleService){}
+ @Get('dashboard') dashboard(){return this.service.dashboard()}
+ @Get('users') users(@Query() q:any){return this.service.users(q)} @Get('users/:id') user(@Param('id') id:string){return this.service.user(id)} @Post('users') createUser(@Req() r:any,@Body() b:any){return this.service.createUser(r.admin,b)} @Patch('users/:id') updateUser(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateUser(r.admin,id,b)} @Post('users/:id/status') userStatus(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.setStatus(r.admin,id,!!b.isActive)} @Post('users/:id/verify-email') verify(@Req() r:any,@Param('id') id:string){return this.service.verifyEmail(r.admin,id)} @Delete('users/:id') remove(@Req() r:any,@Param('id') id:string,@Query('mode') mode?:string){return this.service.removeUser(r.admin,id,mode==='hard')}
+ @Get('creators') creators(@Query() q:any){return this.service.creators(q)} @Get('creators/:id') creator(@Param('id') id:string){return this.service.creator(id)} @Post('creators') createCreator(@Req() r:any,@Body() b:any){return this.service.createCreator(r.admin,b)} @Patch('creators/:id') updateCreator(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateCreator(r.admin,id,b)}
+ @Get('streams') streams(@Query() q:any){return this.service.streams(q)} @Get('streams/:id') stream(@Param('id') id:string){return this.service.stream(id)} @Post('streams') createStream(@Req() r:any,@Body() b:any){return this.service.createStream(r.admin,b)} @Patch('streams/:id') updateStream(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateStream(r.admin,id,b)} @Post('streams/:id/end') endStream(@Req() r:any,@Param('id') id:string){return this.service.endStream(r.admin,id)}
+ @Get('connections') connections(@Query() q:any){return this.service.connections(q)} @Get('connections/:id') connection(@Param('id') id:string){return this.service.connection(id)} @Post('connections') createConnection(@Req() r:any,@Body() b:any){return this.service.createConnection(r.admin,b)} @Patch('connections/:id') updateConnection(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateConnection(r.admin,id,b)} @Post('connections/:id/enabled') connectionEnabled(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.setConnectionEnabled(r.admin,id,!!b.isEnabled)}
 
-  private token(value?: string) {
-    return (value || '').replace(/^Bearer\s+/i, '').trim();
-  }
-
-  @Post('login')
-  login(
-    @Body()
-    body: {
-      email: string;
-      password: string;
-    },
-  ) {
-    return this.admin.login(body.email, body.password);
-  }
-
-
-
-  @Get('runtime-status')
-  runtimeStatus() {
-    return {
-      ok: true,
-      service: 'UniversalLive Admin Console API',
-      runtime: 'nestjs',
-      adminConsole: true,
-      cors: true,
-      time: new Date().toISOString(),
-    };
-  }
-
-  @Get('me')
-  me(@Headers('authorization') authorization?: string) {
-    return this.admin.me(this.token(authorization));
-  }
-
-  @Get('overview')
-  overview(@Headers('authorization') authorization?: string) {
-    return this.admin.overview(this.token(authorization));
-  }
-
-  @Get('recent-users')
-  recentUsers(@Headers('authorization') authorization?: string) {
-    return this.admin.recentUsers(this.token(authorization));
-  }
-
-  @Get('recent-broadcasts')
-  recentBroadcasts(@Headers('authorization') authorization?: string) {
-    return this.admin.recentBroadcasts(this.token(authorization));
-  }
-
-  @Get('open-support')
-  openSupport(@Headers('authorization') authorization?: string) {
-    return this.admin.openSupport(this.token(authorization));
-  }
-
-  @Get('creators')
-  creators(@Headers('authorization') authorization?: string) {
-    return this.admin.creators(this.token(authorization));
-  }
-
-  @Patch('creators/:userId/membership')
-  membership(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('userId') userId: string,
-    @Body()
-    body: {
-      planKey: 'free' | 'creator' | 'pro';
-      status?: string;
-    },
-  ) {
-    return this.admin.updateMembership(
-      this.token(authorization),
-      userId,
-      body,
-    );
-  }
-
-  @Get('connections')
-  connections(@Headers('authorization') authorization?: string) {
-    return this.admin.connections(this.token(authorization));
-  }
-
-  @Patch('connections/:id')
-  updateConnection(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-    @Body() body: { isEnabled?: boolean; status?: string },
-  ) {
-    return this.admin.updateConnection(
-      this.token(authorization),
-      id,
-      body,
-    );
-  }
-
-  @Get('broadcasts')
-  broadcasts(@Headers('authorization') authorization?: string) {
-    return this.admin.broadcasts(this.token(authorization));
-  }
-
-  @Post('broadcasts/:id/stop')
-  stopBroadcast(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-  ) {
-    return this.admin.stopBroadcast(this.token(authorization), id);
-  }
-
-  @Get('support')
-  support(@Headers('authorization') authorization?: string) {
-    return this.admin.supportTickets(this.token(authorization));
-  }
-
-  @Patch('support/:id')
-  updateSupport(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-    @Body() body: { status?: string; priority?: string },
-  ) {
-    return this.admin.updateSupport(
-      this.token(authorization),
-      id,
-      body,
-    );
-  }
-
-
-  @Get('plans')
-  plans(@Headers('authorization') authorization?: string) {
-    return this.admin.plans(this.token(authorization));
-  }
-
-  @Patch('plans/:planKey')
-  updatePlan(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('planKey') planKey: string,
-    @Body()
-    body: {
-      name?: string;
-      description?: string;
-      isActive?: boolean;
-      sortOrder?: number;
-      entitlements?: Record<string, unknown>;
-    },
-  ) {
-    return this.admin.updatePlan(
-      this.token(authorization),
-      planKey,
-      body,
-    );
-  }
-
-  @Get('notifications')
-  notifications(@Headers('authorization') authorization?: string) {
-    return this.admin.notifications(this.token(authorization));
-  }
-
-  @Post('notifications/broadcast')
-  broadcastNotification(
-    @Headers('authorization') authorization: string | undefined,
-    @Body()
-    body: {
-      title: string;
-      body: string;
-      audience?: 'all' | 'free' | 'creator' | 'pro';
-    },
-  ) {
-    return this.admin.createNotificationBroadcast(
-      this.token(authorization),
-      body,
-    );
-  }
-
-  @Get('audit')
-  audit(@Headers('authorization') authorization?: string) {
-    return this.admin.auditLog(this.token(authorization));
-  }
-
-  @Get('system/flags')
-  flags(@Headers('authorization') authorization?: string) {
-    return this.admin.systemFlags(this.token(authorization));
-  }
-
-  @Patch('system/flags/:key')
-  updateFlag(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('key') key: string,
-    @Body() body: { value: unknown },
-  ) {
-    return this.admin.updateSystemFlag(
-      this.token(authorization),
-      key,
-      body.value,
-    );
-  }
-
-  @Get('system/health')
-  systemHealth(@Headers('authorization') authorization?: string) {
-    return this.admin.operationalHealth(this.token(authorization));
-  }
-
-
-  @Get('creators/:userId')
-  creatorDetail(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('userId') userId: string,
-  ) {
-    return this.admin.creatorDetail(this.token(authorization), userId);
-  }
-
-  @Get('broadcasts/:id')
-  broadcastDetail(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-  ) {
-    return this.admin.broadcastDetail(this.token(authorization), id);
-  }
-
-  @Get('support/:id')
-  supportDetail(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-  ) {
-    return this.admin.supportDetail(this.token(authorization), id);
-  }
-
-  @Post('support/:id/reply')
-  supportReply(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-    @Body() body: { message: string },
-  ) {
-    return this.admin.replySupport(
-      this.token(authorization),
-      id,
-      body.message,
-    );
-  }
-
-  @Get('admin-users')
-  adminUsers(@Headers('authorization') authorization?: string) {
-    return this.admin.adminUsers(this.token(authorization));
-  }
-
-  @Patch('admin-users/:id')
-  updateAdminUser(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-    @Body()
-    body: {
-      role?: 'owner' | 'admin' | 'support' | 'viewer';
-      isActive?: boolean;
-      displayName?: string;
-    },
-  ) {
-    return this.admin.updateAdminUser(
-      this.token(authorization),
-      id,
-      body,
-    );
-  }
+ @Get('diagnostics') diagnostics(@Query() q:any){return this.service.diagnostics(q)}
+ @Get('diagnostics/streams/:id') diagnosticStream(@Param('id') id:string){return this.service.diagnosticStream(id)}
+ @Get('analytics') analytics(@Query() q:any){return this.service.analytics(q)}
+ @Get('plans') plans(){return this.service.plans()}
+ @Get('plans/:key') plan(@Param('key') key:string){return this.service.plan(key)}
+ @Post('plans') createPlan(@Req() r:any,@Body() b:any){return this.service.createPlan(r.admin,b)}
+ @Patch('plans/:key') updatePlan(@Req() r:any,@Param('key') key:string,@Body() b:any){return this.service.updatePlan(r.admin,key,b)}
+ @Post('plans/:key/active') planActive(@Req() r:any,@Param('key') key:string,@Body() b:any){return this.service.setPlanActive(r.admin,key,!!b.isActive)}
+ @Get('entitlements') entitlements(@Query() q:any){return this.service.entitlements(q)}
+ @Get('entitlements/:userId') entitlement(@Param('userId') userId:string){return this.service.entitlement(userId)}
+ @Patch('entitlements/:userId') updateEntitlement(@Req() r:any,@Param('userId') userId:string,@Body() b:any){return this.service.updateEntitlement(r.admin,userId,b)}
+ @Get('billing') billing(@Query() q:any){return this.service.billing(q)}
+ @Get('billing/:id') purchase(@Param('id') id:string){return this.service.purchase(id)}
+ @Patch('billing/:id') updatePurchase(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updatePurchase(r.admin,id,b)}
+ @Get('notifications') notifications(@Query() q:any){return this.service.notifications(q)}
+ @Get('notifications/:id') notification(@Param('id') id:string){return this.service.notification(id)}
+ @Post('notifications') sendNotification(@Req() r:any,@Body() b:any){return this.service.sendNotification(r.admin,b)}
+ @Delete('notifications/:id') deleteNotification(@Req() r:any,@Param('id') id:string){return this.service.deleteNotification(r.admin,id)}
+ @Get('support') supportTickets(@Query() q:any){return this.service.supportTickets(q)}
+ @Get('support/:id') supportTicket(@Param('id') id:string){return this.service.supportTicket(id)}
+ @Post('support') createSupportTicket(@Req() r:any,@Body() b:any){return this.service.createSupportTicket(r.admin,b)}
+ @Patch('support/:id') updateSupportTicket(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateSupportTicket(r.admin,id,b)}
+ @Post('support/:id/reply') replySupportTicket(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.replySupportTicket(r.admin,id,b)}
+ @Get('moderation') moderation(@Query() q:any){return this.service.moderation(q)}
+ @Get('moderation/:id') moderationCase(@Param('id') id:string){return this.service.moderationCase(id)}
+ @Post('moderation') createModerationCase(@Req() r:any,@Body() b:any){return this.service.createModerationCase(r.admin,b)}
+ @Patch('moderation/:id') updateModerationCase(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateModerationCase(r.admin,id,b)}
+ @Get('system-health') systemHealth(){return this.service.systemHealth()}
+ @Get('system-flags') systemFlags(){return this.service.systemFlags()}
+ @Get('system-flags/:key') systemFlag(@Param('key') key:string){return this.service.systemFlag(key)}
+ @Post('system-flags') createSystemFlag(@Req() r:any,@Body() b:any){return this.service.createSystemFlag(r.admin,b)}
+ @Patch('system-flags/:key') updateSystemFlag(@Req() r:any,@Param('key') key:string,@Body() b:any){return this.service.updateSystemFlag(r.admin,key,b)}
+ @Delete('system-flags/:key') deleteSystemFlag(@Req() r:any,@Param('key') key:string){return this.service.deleteSystemFlag(r.admin,key)}
+ @Get('admin-users') adminUsers(@Query() q:any){return this.service.adminUsers(q)}
+ @Get('admin-users/:id') adminUser(@Param('id') id:string){return this.service.adminUser(id)}
+ @Post('admin-users') createAdminUser(@Req() r:any,@Body() b:any){return this.service.createAdminUser(r.admin,b)}
+ @Patch('admin-users/:id') updateAdminUser(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.updateAdminUser(r.admin,id,b)}
+ @Post('admin-users/:id/active') setAdminActive(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.setAdminActive(r.admin,id,!!b.isActive)}
+ @Post('admin-users/:id/password') resetAdminPassword(@Req() r:any,@Param('id') id:string,@Body() b:any){return this.service.resetAdminPassword(r.admin,id,String(b.password||''))}
+ @Get('audit') auditLogs(@Query() q:any){return this.service.auditLogs(q)}
+ @Get('settings') adminSettings(@Req() r:any){return this.service.adminSettings(r.admin)}
+ @Patch('settings/profile') updateAdminProfile(@Req() r:any,@Body() b:any){return this.service.updateAdminProfile(r.admin,b)}
+ @Patch('settings/preferences') updateAdminPreferences(@Req() r:any,@Body() b:any){return this.service.updateAdminPreferences(r.admin,b)}
+ @Get('settings/global') globalAdminSettings(@Req() r:any){return this.service.globalAdminSettings(r.admin)}
+ @Patch('settings/global') updateGlobalAdminSettings(@Req() r:any,@Body() b:any){return this.service.updateGlobalAdminSettings(r.admin,b)}
+ @Get('final-qa') finalQa(@Req() r:any){return this.service.finalQa(r.admin)}
 }
