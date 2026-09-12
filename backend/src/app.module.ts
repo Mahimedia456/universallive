@@ -55,9 +55,12 @@ import { SecurityAuditModule } from './security-audit/security-audit.module';
 
 import { RealtimeFinalModule } from './realtime-final/realtime-final.module';
 
+import { StreamLifecycleModule } from './stream-lifecycle/stream-lifecycle.module';
+
 @Module({
   controllers: [AppController],
   imports: [AdminAuthModule, AdminConsoleModule, 
+    StreamLifecycleModule,
     RealtimeFinalModule,
     SecurityAuditModule,
     SupportV2Module,
