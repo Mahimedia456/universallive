@@ -1,0 +1,6 @@
+# Add the deployed ADMIN origin to your BACKEND Vercel project's environment.
+# Example after admin deploy:
+# CORS_ORIGINS=https://universallive-admin.vercel.app,http://localhost:5174,http://127.0.0.1:5174
+# If backend already has other production origins, keep them too:
+# CORS_ORIGINS=https://universallive.vercel.app,https://universallive-admin.vercel.app,http://localhost:5174,http://127.0.0.1:5174
+# Redeploy backend after changing the environment variable.
